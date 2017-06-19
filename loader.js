@@ -2,16 +2,19 @@
 	"use strict"
 	var moduleStack = [];
 	var parentModuleName = '';
+	var nowLoadedMouleName = '';
 	//工具类
 	var Util = {
 		baseUrl: '',
 		nameMap: [],
 		lastSeparatorReg: /\/[a-zA-Z_-]+\/?$/,
 		moduleNameReg: /\/([a-zA-Z_-])\.([a-z]+)\/?$/,
-		paramWithOneReg: /\(([a-zA-Z_@$-\d])\)/,
-		paramWithTwoReg: /\(([a-zA-Z_@$-\d]),([a-zA-Z_@$-\d])\)/,
-		paramWithTreeReg: /\(([a-zA-Z_@$-\d]),([a-zA-Z_@$-\d]),([a-zA-Z_@$-\d])\)/,
+		paramWithOneReg: /\(([a-zA-Z_@$\-\d]+)\)/,
+		paramWithTwoReg: /\(([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+)\)/,
+		paramWithTreeReg: /\(([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+)\)/,
+		//初始化
 		init: function(){
+			//设置baseUrl
 			if(!this.baseUrl){
 				var script = document.getElementsByTagName('script')[document.getElementsByTagName('script').length -1];
 				var main = script.getAttribute('data-main');
@@ -98,68 +101,6 @@
 				}
 			}
 		},
-		defineWithOneParam: function(module,callback){
-			var result = this.functionResolve(callback);
-			var reolvedDependencies = [];
-			for(var i=0; i<result.dependencies.length; i++){
-				reolvedDependencies.push(Util.nameResolve(parentModuleName,result.dependencies[i]));
-			}
-			module.callbackParamLength = result.paramLengh;
-			module.childrenModuleNames = reolvedDependencies;
-			module.callback = callback;
-			module.parentModuleName = parentModuleName;
-			module.moduleName = Util.nameResolve(parentModuleName,this.getModuleName());
-			moduleStack.push({
-				name: module.moduleName,
-				module: module
-			});
-			parentModuleName = module.moduleName; 
-			for(var i=0; i<reolvedDependencies.length; i++){
-				module.require(reolvedDependencies[i]);
-			}
-		},
-		defineWithTwoParam: function(module,dependencies,callback){
-			var reolvedDependencies = [];
-			for(var i=0; i<dependencies.length; i++){
-				reolvedDependencies.push(Util.nameResolve(parentModuleName,dependencies[i]));
-			}
-			module.childrenModuleNames = reolvedDependencies;
-			module.callback = callback;
-			module.parentModuleName = parentModuleName;
-			module.moduleName = Util.nameResolve(parentModuleName,this.getModuleName());
-			moduleStack.push({
-				name: module.moduleName,
-				module: module
-			});
-			parentModuleName = module.moduleName; 
-			for(var i=0; i<reolvedDependencies.length; i++){
-				module.require(reolvedDependencies[i]);
-			}
-		},
-		defineWithThreeParam: function(module,moduleName,dependencies,callback){
-			var reolvedDependencies = [];
-			for(var i=0; i<dependencies.length; i++){
-				reolvedDependencies.push(Util.nameResolve(parentModuleName,dependencies[i]));
-			}
-			module.childrenModuleNames = reolvedDependencies;
-			module.callback = callback;
-			module.parentModuleName = parentModuleName;
-			module.moduleName = Util.nameResolve(parentModuleName,moduleName);
-			moduleStack.push({
-				name: module.moduleName,
-				module: module
-			});
-			parentModuleName = module.moduleName; 
-			for(var i=0; i<reolvedDependencies.length; i++){
-				module.require(reolvedDependencies[i]);
-			}
-		},
-		getModuleName: function(){
-			var head = document.getElementsByTagName('head')[0];
-			var script = document.getElementsByTagName('script')[document.getElementsByTagName('script').length -1];
-			var moduleName = script.src.match(this.moduleNameReg)[1];
-			return moduleName;
-		},
 		//函数字符串解析
 		functionResolve: function(fun){
 			var funStr = fun.toString();
@@ -223,21 +164,58 @@
 			}
 		}
 	}
+	//全局define函数
 	function define() {
-		var module = new Module();		
-		switch(arguments.length){
-			case 1: Util.defineWithOneParam(module,arguments[0]); break;
-			case 2: Util.defineWithTwoParam(module,arguments[0],arguments[1]); break;
-			case 3: Util.defineWithThreeParam(module,arguments[0],arguments[1],arguments[2]); break;
-		}
+		var module = new Module();
+		var defineArguments = arguments;
+		//异步执行，在loadRes回调之后执行，为了获取当前执行define函数的脚本的moduleName
+		setTimeout(function(){
+			var moduleName,dependencies,callback,reolvedDependencies=[];
+			if(defineArguments.length==1){
+				var result = Util.functionResolve(defineArguments[0]);
+				moduleName = nowLoadedMouleName;
+				dependencies = result.dependencies;
+				callback = defineArguments[0];
+				module.callbackParamLength = result.paramLengh;
+			}else if(defineArguments.length==2){
+				moduleName = nowLoadedMouleName;
+				dependencies = defineArguments[0];
+				callback = defineArguments[1];
+			}else if(defineArguments.length==3){
+				moduleName = defineArguments[0];
+				dependencies = defineArguments[1];
+				callback = defineArguments[2];
+			}
+			for(var i=0; i<dependencies.length; i++){
+				reolvedDependencies.push(Util.nameResolve(parentModuleName,dependencies[i]));
+			}
+			module.childrenModuleNames = reolvedDependencies;
+			module.callback = callback;
+			module.parentModuleName = parentModuleName;
+			module.moduleName = Util.nameResolve(parentModuleName,moduleName);
+			moduleStack.push({
+				name: module.moduleName,
+				module: module
+			});
+			parentModuleName = module.moduleName; 
+			for(var i=0; i<reolvedDependencies.length; i++){
+				module.require(reolvedDependencies[i]);
+			}
+		},0);	
+		
 	}
-	function _require(url,suffix){
+	function _require(moduleName,suffix){
 		suffix = suffix ? suffix : 'js';
-		var path = Util.pathResolve(url,suffix);
+		var path = Util.pathResolve(moduleName,suffix);
 		Util.loadRes(path,function(){
-			Util.doLoopCheck(Util.getModuleByName(parentModuleName));
+			nowLoadedMouleName = moduleName;
+			//异步执行，在define之后执行
+			setTimeout(function(){
+				Util.doLoopCheck(Util.getModuleByName(parentModuleName));
+			},0)
 		});
 	}
+	//全局require函数
 	function require(url,suffix){
 		_require(url,suffix);
 	}
