@@ -212,11 +212,11 @@
 				}
 				if(childrenAllDone){
 					var dependencies = [];
+					module.callbackDone = true;
 					for(var i=0; i<module.childrenModuleNames.length; i++){
-						// dependencies.push(module.require(module.childrenModuleNames[i]));
+						 dependencies.push(module.require(module.childrenModuleNames[i]));
 					}
 					module.callback.apply(module,dependencies);
-					module.callbackDone = true;
 					module = Util.getModuleByName(module.parentModuleName);
 					module && this.doLoopCheck(module);
 				}
@@ -231,16 +231,23 @@
 			case 3: Util.defineWithThreeParam(module,arguments[0],arguments[1],arguments[2]); break;
 		}
 	}
-	function require(url,suffix){
+	function _require(url,suffix){
 		suffix = suffix ? suffix : 'js';
 		var path = Util.pathResolve(url,suffix);
 		Util.loadRes(path,function(){
 			Util.doLoopCheck(Util.getModuleByName(parentModuleName));
 		});
 	}
+	function require(url,suffix){
+		_require(url,suffix);
+	}
 	//模块类
 	var Module = function(){
 	}
-	Module.prototype.require = require;
+	Module.prototype.require = function(url,suffix){
+		if(this.callbackDone)
+			return this.exports || {};
+		_require(url,suffix);
+	};
 	Util.init();
 })(window)
