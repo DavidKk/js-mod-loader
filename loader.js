@@ -9,9 +9,9 @@
 		nameMap: [],
 		lastSeparatorReg: /\/[a-zA-Z_-]+\/?$/,
 		moduleNameReg: /\/([a-zA-Z_-])\.([a-z]+)\/?$/,
-		paramWithOneReg: /\(([a-zA-Z_$\-\d]+)\)/,
-		paramWithTwoReg: /\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
-		paramWithTreeReg: /\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
+		paramWithOneReg: /function *\(([a-zA-Z_$\-\d]+)\)/,
+		paramWithTwoReg: /function *\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
+		paramWithTreeReg: /function *\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
 		//初始化
 		init: function(){
 			//设置baseUrl
@@ -121,7 +121,7 @@
 			}
 			//根据第一个参数拼凑加载依赖的正则
 			var regStr = requireStr+'\\([\'\" ]*?([a-zA-Z_-])[\'\" ]*?\\)';
-			var reg = new RegExp(regStr,'g');
+			var reg = new RegExp(regStr,'mg');
 			var result = null;
 			//匹配使用require函数加载的依赖名名称
 			while(result=reg.exec(funStr)){
@@ -137,12 +137,18 @@
 					module.callback();
 					module.callbackDone = true;
 				}else{
-					switch(module.callbackParamLength){
-						case 0: module.callback();break;
-						case 1: module.callback(module.require); module.callbackDone = true; break;
-						case 2: module.callback(module.require,module.exports); module.callbackDone = true; break;
-						case 3: module.callback(module.require,module.exports,module); module.callbackDone = true; break;
+					if(module.paramLength == 1){
+						switch(module.callbackParamLength){
+							case 0: module.callback();break;
+							case 1: module.callback(module.require); module.callbackDone = true; break;
+							case 2: module.callback(module.require,module.exports); module.callbackDone = true; break;
+							case 3: module.callback(module.require,module.exports,module); module.callbackDone = true; break;
+						}
+					}else{
+						module.callback();
+						module.callbackDone = true;
 					}
+					
 				}
 				module = Util.getModuleByName(module.parentModuleName);
 				module && this.doLoopCheck(module);
@@ -185,18 +191,22 @@
 				dependencies = result.dependencies;
 				callback = defineArguments[0];
 				module.callbackParamLength = result.paramLengh;
+				module.paramLength = 1;
 			}else if(defineArguments.length==2){//define(dependencies,callback)
 				moduleName = nowLoadedMouleName;
 				dependencies = defineArguments[0];
 				callback = defineArguments[1];
+				module.paramLength = 2;
 			}else if(defineArguments.length==3){//define(moduleName,dependencies,callback)
 				moduleName = defineArguments[0];
 				dependencies = defineArguments[1];
 				callback = defineArguments[2];
+				module.paramLength = 3;
 			}
 			//解析依赖的模块名
 			for(var i=0; i<dependencies.length; i++){
-				reolvedDependencies.push(Util.nameResolve(parentModuleName,dependencies[i]));
+				var name = Util.nameResolve(parentModuleName,dependencies[i]);
+				name!=parentModuleName ? reolvedDependencies.push(name) : '';
 			}
 			//所有依赖的模块
 			module.childrenModuleNames = reolvedDependencies;
