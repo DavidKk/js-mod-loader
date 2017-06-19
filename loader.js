@@ -9,9 +9,9 @@
 		nameMap: [],
 		lastSeparatorReg: /\/[a-zA-Z_-]+\/?$/,
 		moduleNameReg: /\/([a-zA-Z_-])\.([a-z]+)\/?$/,
-		paramWithOneReg: /\(([a-zA-Z_@$\-\d]+)\)/,
-		paramWithTwoReg: /\(([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+)\)/,
-		paramWithTreeReg: /\(([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+),([a-zA-Z_@$\-\d]+)\)/,
+		paramWithOneReg: /\(([a-zA-Z_$\-\d]+)\)/,
+		paramWithTwoReg: /\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
+		paramWithTreeReg: /\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
 		//初始化
 		init: function(){
 			//设置baseUrl
@@ -65,6 +65,7 @@
 		//加载资源
 		loadRes: function(url,callback){
 			var suffix = url.substr(url.lastIndexOf('.')+1);
+			//目前只能加载js，后续可以继续扩展
 			switch(suffix){
 				case 'js':this.loadScript(url,callback);break;
 			}
@@ -107,6 +108,7 @@
 			var paramLengh = 0;
 			var requireStr = '';
 			var dependencies = [];
+			//解析出第一个参数require
 			if(funStr.match(this.paramWithOneReg)){
 				paramLengh = 1;
 				requireStr = funStr.match(this.paramWithOneReg)[1];
@@ -117,9 +119,11 @@
 				paramLengh = 3;
 				requireStr = funStr.match(this.paramWithThreeReg)[1];
 			}
+			//根据第一个参数拼凑加载依赖的正则
 			var regStr = requireStr+'\\([\'\" ]*?([a-zA-Z_-])[\'\" ]*?\\)';
 			var reg = new RegExp(regStr,'g');
 			var result = null;
+			//匹配使用require函数加载的依赖名名称
 			while(result=reg.exec(funStr)){
 				dependencies.push(result[1]);
 			}
@@ -127,6 +131,7 @@
 		},
 		//检查模块是否可以执行回调
 		doLoopCheck: function(module){
+			//没有依赖的模块,可以立即执行
 			if((!module.childrenModuleNames || module.childrenModuleNames.length == 0) && !module.callbackDone){
 				if(typeof module.callbackParamLength === undefined){
 					module.callback();
@@ -144,13 +149,16 @@
 			}else{
 				var childrenAllDone = true;
 				var tempModule = null;
+				//检查依赖的模块的回调函数是否都执行完毕了
 				for(var i=0; i<module.childrenModuleNames.length; i++){
 					tempModule = Util.getModuleByName(module.childrenModuleNames[i]);
+					//没有加载完成或没有执行回调函数
 					if(!tempModule || !tempModule.callbackDone){
 						childrenAllDone = false;
 						break;
 					}
 				}
+				//如果依赖的模块的回调函数都执行完毕了，那么该模块开始执行回调函数
 				if(childrenAllDone){
 					var dependencies = [];
 					module.callbackDone = true;
@@ -171,33 +179,41 @@
 		//异步执行，在loadRes回调之后执行，为了获取当前执行define函数的脚本的moduleName
 		setTimeout(function(){
 			var moduleName,dependencies,callback,reolvedDependencies=[];
-			if(defineArguments.length==1){
+			if(defineArguments.length==1){//define(callback)
 				var result = Util.functionResolve(defineArguments[0]);
 				moduleName = nowLoadedMouleName;
 				dependencies = result.dependencies;
 				callback = defineArguments[0];
 				module.callbackParamLength = result.paramLengh;
-			}else if(defineArguments.length==2){
+			}else if(defineArguments.length==2){//define(dependencies,callback)
 				moduleName = nowLoadedMouleName;
 				dependencies = defineArguments[0];
 				callback = defineArguments[1];
-			}else if(defineArguments.length==3){
+			}else if(defineArguments.length==3){//define(moduleName,dependencies,callback)
 				moduleName = defineArguments[0];
 				dependencies = defineArguments[1];
 				callback = defineArguments[2];
 			}
+			//解析依赖的模块名
 			for(var i=0; i<dependencies.length; i++){
 				reolvedDependencies.push(Util.nameResolve(parentModuleName,dependencies[i]));
 			}
+			//所有依赖的模块
 			module.childrenModuleNames = reolvedDependencies;
+			//回调函数
 			module.callback = callback;
+			//父模块
 			module.parentModuleName = parentModuleName;
+			//模块名
 			module.moduleName = Util.nameResolve(parentModuleName,moduleName);
+			//模块入栈
 			moduleStack.push({
 				name: module.moduleName,
 				module: module
 			});
+			//记录父模块名
 			parentModuleName = module.moduleName; 
+			//加载依赖
 			for(var i=0; i<reolvedDependencies.length; i++){
 				module.require(reolvedDependencies[i]);
 			}
@@ -205,6 +221,12 @@
 		
 	}
 	function _require(moduleName,suffix){
+		var module = Util.getModuleByName(moduleName);
+		//如果已加载过
+		if(module){
+			//如果加载已经完成，返回输出接口，否则返回null
+			return module.callbackDone ? module.exports : null;
+		}
 		suffix = suffix ? suffix : 'js';
 		var path = Util.pathResolve(moduleName,suffix);
 		Util.loadRes(path,function(){
@@ -216,16 +238,16 @@
 		});
 	}
 	//全局require函数
-	function require(url,suffix){
-		_require(url,suffix);
+	function require(moduleName,suffix){
+		moduleName = Util.nameResolve(null,moduleName);
+		return _require(moduleName,suffix);
 	}
 	//模块类
 	var Module = function(){
+		this.exports = {};
 	}
-	Module.prototype.require = function(url,suffix){
-		if(this.callbackDone)
-			return this.exports || {};
-		_require(url,suffix);
+	Module.prototype.require = function(moduleName,suffix){
+		return _require(moduleName,suffix);
 	};
 	Util.init();
 })(window)

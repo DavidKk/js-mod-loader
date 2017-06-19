@@ -1,3 +1,3 @@
-define(['./b'],function(){
-	console.log('a.js')
+define(['./b'],function(b){
+	console.log('a.js',b.x);
 })

@@ -1,3 +1,4 @@
-define(function(){
-	console.log('b.js')
+define(function(require,exports){
+	console.log('b.js');
+	exports.x = 'test';
 })
