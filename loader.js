@@ -218,7 +218,8 @@
 		suffix = suffix ? suffix : 'js';
 		var path = Util.pathResolve(moduleName,suffix);
 		Util.loadRes(path,function(){
-			moduleName = nowModule.paramLengh == 3 ? customModuleName : moduleName;
+			moduleName = customModuleName || moduleName;
+			customModuleName = '';
 			//模块名
 			nowModule.moduleName = Util.nameResolve(parentModuleName,moduleName);
 			//模块入栈
