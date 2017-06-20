@@ -8,7 +8,7 @@
 	//工具类
 	var Util = {
 		baseUrl: '',
-		nameMap: [],
+		path: [],
 		lastSeparatorReg: /\/[a-zA-Z_-]+\/?$/,
 		moduleNameReg: /\/([a-zA-Z_-])\.([a-z]+)\/?$/,
 		paramWithOneReg: /function *\(([a-zA-Z_$\-\d]+)\)/,
@@ -59,8 +59,8 @@
 		//路径解析
 		pathResolve: function(moduleName,suffix){
 			//处理模块名
-			for(var key in this.nameMap){
-				moduleName = moduleName.replace(key,this.nameMap[key]);
+			for(var key in this.path){
+				moduleName = moduleName.replace(key,this.path[key]);
 			}
 			return this.baseUrl+moduleName+'.'+suffix;
 		},
@@ -122,7 +122,7 @@
 				requireStr = funStr.match(this.paramWithThreeReg)[1];
 			}
 			//根据第一个参数拼凑加载依赖的正则
-			var regStr = requireStr+'\\([\'\" ]*?([a-zA-Z_-])[\'\" ]*?\\)';
+			var regStr = requireStr+'\\([\'\" ]*?([a-zA-Z_-]+)[\'\" ]*?\\)';
 			var reg = new RegExp(regStr,'mg');
 			var result = null;
 			//匹配使用require函数加载的依赖名名称
@@ -133,32 +133,10 @@
 		},
 		//检查模块是否可以执行回调
 		doLoopCheck: function(module){
-			//没有依赖的模块,可以立即执行
-			if((!module.childrenModuleNames || module.childrenModuleNames.length == 0) && !module.callbackDone){
-				if(typeof module.callbackParamLength === undefined){
-					module.callback();
-					module.callbackDone = true;
-				}else{
-					if(module.paramLength == 1){
-						switch(module.callbackParamLength){
-							case 0: module.callback();break;
-							case 1: module.callback(module.require); module.callbackDone = true; break;
-							case 2: module.callback(module.require,module.exports); module.callbackDone = true; break;
-							case 3: module.callback(module.require,module.exports,module); module.callbackDone = true; break;
-						}
-					}else{
-						module.callback();
-						module.callbackDone = true;
-					}
-					
-				}
-				module = Util.getModuleByName(module.parentModuleName);
-				module && this.doLoopCheck(module);
-			}else{
 				var childrenAllDone = true;
 				var tempModule = null;
 				//检查依赖的模块的回调函数是否都执行完毕了
-				for(var i=0; i<module.childrenModuleNames.length; i++){
+				for(var i=0; module.childrenModuleNames && i<module.childrenModuleNames.length; i++){
 					tempModule = Util.getModuleByName(module.childrenModuleNames[i]);
 					//没有加载完成或没有执行回调函数
 					if(!tempModule || !tempModule.callbackDone){
@@ -167,13 +145,14 @@
 					}
 				}
 				//如果依赖的模块的回调函数都执行完毕了，那么该模块开始执行回调函数
-				if(childrenAllDone){
-					if(module.paramLength == 1){
+				if(childrenAllDone && !module.callbackDone){
+					if(module.paramLength == 1 || !module.childrenModuleNames || module.childrenModuleNames.length==0){
 						switch(module.callbackParamLength){
 							case 0: module.callback();break;
 							case 1: module.callback(module.require); module.callbackDone = true; break;
 							case 2: module.callback(module.require,module.exports); module.callbackDone = true; break;
 							case 3: module.callback(module.require,module.exports,module); module.callbackDone = true; break;
+							default: module.callback(); module.callbackDone = true;
 						}
 					}else{
 						var dependencies = [];
@@ -182,11 +161,10 @@
 							 dependencies.push(module.require(module.childrenModuleNames[i]));
 						}
 						module.callback.apply(module,dependencies);
-						module = Util.getModuleByName(module.parentModuleName);
-						module && this.doLoopCheck(module);
 					}
+					module = Util.getModuleByName(module.parentModuleName);
+					module && this.doLoopCheck(module);
 				}
-			}
 		}
 	}
 	//全局define函数
@@ -202,7 +180,14 @@
 			nowModule.callbackParamLength = result.paramLengh;
 			nowModule.paramLength = 1;
 		}else if(defineArguments.length==2){//define(dependencies,callback)
-			dependencies = defineArguments[0];
+			if(typeof defineArguments[0] == 'string'){
+				var result = Util.functionResolve(defineArguments[1]);
+				customModuleName = defineArguments[0];
+				dependencies = result.dependencies;
+				nowModule.callbackParamLength = result.paramLengh;
+			}else{
+				dependencies = defineArguments[0];
+			}
 			callback = defineArguments[1];
 			nowModule.paramLength = 2;
 		}else if(defineArguments.length==3){//define(moduleName,dependencies,callback)
@@ -255,6 +240,10 @@
 	function require(moduleName,suffix){
 		moduleName = Util.nameResolve(null,moduleName);
 		return _require(moduleName,suffix);
+	}
+	//配置路径映射接口
+	require.config = function(obj){
+		(typeof obj == 'object' && obj.path && typeof obj.path == 'object') ? Util.path = obj.path : '';
 	}
 	//模块类
 	var Module = function(){
