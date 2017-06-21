@@ -200,7 +200,6 @@
 			nowDependencies = result.dependencies;
 			callback = arguments[0];
 			nowModule.callbackParamLength = result.paramLengh;
-			nowModule.paramLength = 1;
 		}else if(arguments.length==2){//define(dependencies,callback)|define(moduleName,callback)
 			if(typeof arguments[0] == 'string'){
 				var result = Util.functionResolve(arguments[1]);
@@ -211,12 +210,10 @@
 				nowDependencies = arguments[0];
 			}
 			callback = arguments[1];
-			nowModule.paramLength = 2;
 		}else if(arguments.length==3){//define(moduleName,dependencies,callback)
 			customModuleName = arguments[0];
 			nowDependencies = arguments[1];
 			callback = arguments[2];
-			nowModule.paramLength = 3;
 		}
 		//回调函数
 		nowModule.callback = callback;
@@ -270,7 +267,6 @@
 		nowModule = new Module();
 		//随机生成模块名称
 		nowModule.moduleName = Util.createRandomName(10);
-		nowModule.paramLength = 2;
 		nowModule.callback = callback;
 		nowModule.childrenModuleNames = dependencies;
 		for(var i=0; i<dependencies.length ;i++){
