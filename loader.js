@@ -1,10 +1,10 @@
 (function(window){
 	"use strict"
 	var moduleStack = [];//模块栈
-	var parentModuleName = '';//父模块名
+	var parentModuleNameMap = {};//父模块名映射
 	var nowModule = null;//当前处理的模块
 	var customModuleName = '';//自定义的模块名
-	var reolvedDependencies;//解析后的依赖名称数组
+	var nowDependencies = [];//当前待处理的未解析的依赖名称数组
 	//工具类
 	var Util = {
 		baseUrl: '',
@@ -14,6 +14,7 @@
 		paramWithOneReg: /function *\(([a-zA-Z_$\-\d]+)\)/,
 		paramWithTwoReg: /function *\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
 		paramWithTreeReg: /function *\(([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+),([a-zA-Z_$\-\d]+)\)/,
+		noteReg: /\/\/[\s\S]*?\n|\/\*[\s\S]*?\*\//mg,
 		//初始化
 		init: function(){
 			//设置baseUrl
@@ -110,6 +111,8 @@
 			var paramLengh = 0;
 			var requireStr = '';
 			var dependencies = [];
+			//先去掉注释
+			funStr = funStr.replace(this.noteReg,'');
 			//解析出第一个参数require
 			if(funStr.match(this.paramWithOneReg)){
 				paramLengh = 1;
@@ -169,13 +172,12 @@
 	}
 	//全局define函数
 	function define() {
-		reolvedDependencies = [];
 		nowModule = new Module();
 		var defineArguments = arguments;
-		var moduleName,dependencies,callback;
+		var moduleName,callback;
 		if(defineArguments.length==1){//define(callback)
 			var result = Util.functionResolve(defineArguments[0]);
-			dependencies = result.dependencies;
+			nowDependencies = result.dependencies;
 			callback = defineArguments[0];
 			nowModule.callbackParamLength = result.paramLengh;
 			nowModule.paramLength = 1;
@@ -183,30 +185,21 @@
 			if(typeof defineArguments[0] == 'string'){
 				var result = Util.functionResolve(defineArguments[1]);
 				customModuleName = defineArguments[0];
-				dependencies = result.dependencies;
+				nowDependencies = result.dependencies;
 				nowModule.callbackParamLength = result.paramLengh;
 			}else{
-				dependencies = defineArguments[0];
+				nowDependencies = defineArguments[0];
 			}
 			callback = defineArguments[1];
 			nowModule.paramLength = 2;
 		}else if(defineArguments.length==3){//define(moduleName,dependencies,callback)
 			customModuleName = defineArguments[0];
-			dependencies = defineArguments[1];
+			nowDependencies = defineArguments[1];
 			callback = defineArguments[2];
 			nowModule.paramLength = 3;
 		}
-		//解析依赖的模块名
-		for(var i=0; i<dependencies.length; i++){
-			var name = Util.nameResolve(parentModuleName,dependencies[i]);
-			name!=parentModuleName ? reolvedDependencies.push(name) : '';
-		}
-		//所有依赖的模块
-		nowModule.childrenModuleNames = reolvedDependencies;
 		//回调函数
 		nowModule.callback = callback;
-		//父模块
-		nowModule.parentModuleName = parentModuleName;
 	}
 	function _require(moduleName,suffix){
 		var module = Util.getModuleByName(moduleName);
@@ -217,24 +210,32 @@
 		}
 		suffix = suffix ? suffix : 'js';
 		var path = Util.pathResolve(moduleName,suffix);
+		var dependencies = [];
 		Util.loadRes(path,function(){
 			moduleName = customModuleName || moduleName;
 			customModuleName = '';
 			//模块名
-			nowModule.moduleName = Util.nameResolve(parentModuleName,moduleName);
+			nowModule.moduleName = moduleName;
+			//解析依赖的模块名
+			for(var i=0; i<nowDependencies.length; i++){
+				var name = Util.nameResolve(moduleName,nowDependencies[i]);
+				name!=moduleName ? dependencies.push(name) : '';
+			}
+			//所有依赖的模块
+			nowModule.childrenModuleNames = dependencies;
 			//模块入栈
 			moduleStack.push({
 				name: nowModule.moduleName,
 				module: nowModule
 			});
-			//记录父模块名
-			parentModuleName = nowModule.moduleName; 
+			//父模块
+			nowModule.parentModuleName = parentModuleNameMap[moduleName];
 			//加载依赖
-			for(var i=0; i<reolvedDependencies.length; i++){
-				nowModule.require(reolvedDependencies[i]);
+			for(var i=0; i<dependencies.length; i++){
+				nowModule.require(dependencies[i]);
+				parentModuleNameMap[dependencies[i]] = moduleName;
 			}	
 			Util.doLoopCheck(Util.getModuleByName(moduleName));
-
 		});
 	}
 	//全局require函数
