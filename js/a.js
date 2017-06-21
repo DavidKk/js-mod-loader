@@ -1,8 +1,9 @@
 require.config({
 	path:{test : 'b'}
 })
-define(function(require){
-	var c = require('c');
+define(['c','d'],function(c,d,exports){
+	// var c = require('c');
 	// var b = require('test');
-	console.log('a.js'/*,b.x*/,c.x);
+	console.log('a.js'/*,b.x*/,c.x,d.x);
+	exports.x = 'a';
 })

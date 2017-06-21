@@ -1,4 +1,4 @@
-define('test',function(require,exports){
+define('bAlias',function(require,exports){
 	console.log('b.js');
-	exports.x = 'test'
+	exports.x = 'b';
 })
