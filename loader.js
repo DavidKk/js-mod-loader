@@ -77,7 +77,9 @@
 			var suffix = 'js';
 			//处理模块名
 			for(var key in this.path){
-				moduleName = moduleName.replace(key,this.path[key]);
+				var reg = new RegExp('(^|/)'+key+'(/|$)');
+				if(reg.test(moduleName))
+					moduleName = moduleName.replace(key,this.path[key]);
 			}
 			return this.baseUrl+moduleName+'.'+suffix;
 		},
