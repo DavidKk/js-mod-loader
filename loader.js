@@ -52,7 +52,7 @@
 			for(var i=0; i<num; i++){
 				str += String.fromCharCode(65+Math.ceil(Math.random()*(90-65)));
 			}
-			return str;
+			return str + new Date().getTime();
 		},
 		//模块名解析
 		nameResolve: function(parentName,childrenName){
