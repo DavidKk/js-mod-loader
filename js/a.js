@@ -1,6 +1,3 @@
-require.config({
-	path:{test : 'b'}
-})
 define(['c','d'],function(c,d,exports){
 	// var c = require('c');
 	// var b = require('test');
