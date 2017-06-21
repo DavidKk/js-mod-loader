@@ -23,7 +23,8 @@
 		init: function(){
 			//设置baseUrl
 			if(!this.baseUrl){
-				var script = document.getElementsByTagName('script')[document.getElementsByTagName('script').length -1];
+				var scripts = document.getElementsByTagName('script');
+				var script = scripts[scripts.length -1];
 				var main = script.getAttribute('data-main');
 				if(main){
 					var separator = main.search(this.lastSeparatorReg);
