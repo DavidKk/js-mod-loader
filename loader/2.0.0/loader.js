@@ -6,19 +6,37 @@
 	"use strict"
 
 	//模块类
-	var Module = function(){
+	var Module = function(id,callback){
+		this.id = id;
+		this.callback = callback;
 		this.exports = {};
 	}
 	Module.prototype.require = function(moduleName){
 		return _require(moduleName);
 	};
 	//工具类
-	var Util = {
+	var scriptLoader = {
+		//加载js
+		_loadScript: function(url,callback){
+			var script = document.createElement('script');
+			var onloadEvent = 'onload' in script ? 'onload' : 'onreadystatechange'
+			script.type = 'text/javascript';  
+	        script.src = url;
+	        script[onloadEvent] = function(){
+	        	var state = script.readyState;
+	        	if(!state || state === 'loaded' || state === 'complete'){
+	        		if(typeof callback == 'function')
+					 	callback();
+	        	}
+	        }
+	    	document.getElementsByTagName('head')[0].appendChild(script);
+		},
 	}
 	//加载器
 	var Loader = {
 		moduleStack: [],//模块栈
 		baseUrl: '',//基准路径
+		mode: 'CMD',//加载模式
 		nowJsUrl: '',//当前加载的js链接
 		path: {},//别名
 		suffixReg: /\.(js)$/,//文件后缀
@@ -81,6 +99,14 @@
 			}
 			return this.baseUrl+moduleId+'.'+suffix;
 		},
+		//加载资源
+		_loadRes: function(url,callback){
+			var suffix = url.substr(url.lastIndexOf('.')+1);
+			//目前只能加载js，后续可以继续扩展
+			switch(suffix){
+				case 'js':scriptLoader.loadScript(url,callback);break;
+			}
+		},
 		//函数解析
 		_codeResolve: function(fun){
 			var funStr = fun.toString();
@@ -111,38 +137,6 @@
 			}
 			return {paramLengh: paramLengh, dependencies: dependencies};
 		},
-		//加载资源
-		_loadRes: function(url,callback){
-			var suffix = url.substr(url.lastIndexOf('.')+1);
-			//目前只能加载js，后续可以继续扩展
-			switch(suffix){
-				case 'js':this.loadScript(url,callback);this.nowJsUrl = url;break;
-			}
-		},
-		//加载js
-		_loadScript: function(url,callback){
-			var script = document.createElement('script');
-			script.type = 'text/javascript';  
-	        script.src = url;
-	        var userAgent = navigator.userAgent;
-	        //如果是IE
-	        if (userAgent.indexOf("compatible") > -1 && userAgent.indexOf("MSIE") && userAgent.indexOf("Opera")==-1 ) {
-		        script.onreadystatechange = function() { 
-					var r = script.readyState; 
-					if (r === 'loaded' || r === 'complete') { 
-					 	script.onreadystatechange = null; 
-					 	if(typeof callback == 'function')
-					 		callback(); 
-					} 
-				}; 
-		    }else{
-		    	script.onload = function(){
-		    		if(typeof callback == 'function')
-					 	callback();
-		    	}
-		    }
-	    	document.getElementsByTagName('head')[0].appendChild(script);
-		},
 		//根据模块名获取模块
 		_getModuleByName: function(moduleName){
 			for(var i=0; i<this.moduleStack.length; i++){
@@ -151,10 +145,16 @@
 				}
 			}
 		},
-		//私有require函数，只供内部调用
+		_loopCheck: function(){
+
+		},
+		//私有require函数，只供内部递归加载依赖
 		_require: function(moduleId,callback){
 			var self = this;
 			var count = 0;
+			if(this.moduleStack[moduleId]){
+				return;
+			}
 			if (moduleId instanceof Array){
 				for(var i=0; i<moduleId.length; i++){
 					_loadRes(moduleId[i]);
@@ -164,7 +164,9 @@
 			}
 			function _loadRes(_moduleId){
 				//获取真实url地址
-				var path = this._pathResolve(self.nowJsUrl?self.nowJsUrl:self.baseUrl,_moduleId);
+				var path = self._pathResolve(self.nowJsUrl?self.nowJsUrl:self.baseUrl,_moduleId);
+				var mod = new Module(path,self.callback);
+				self.moduleStack.push(mod);
 				self._loadRes(path,function(){
 					count++;
 					if(moduleId instanceof Array && count==moduleId.length || !moduleId instanceof Array){
@@ -175,21 +177,27 @@
 			}
 		}
 	}
-	//执行回调
-	function excute(module){
-		
-	}
 	//全局define函数
-	function define() {
-		
+	function define(callback) {
+
 	}
 	//全局require函数
 	function require(dependencies,callback){
 
 	}
+	require.config = function(opt){
+		if(!opt)
+			return;
+		opt.baseUrl && (Loader.baseUrl = opt.baseUrl);
+		opt.baseUrl && (Loader.baseUrl = opt.baseUrl);
+	}
 	//配置路径映射接口
 	require.config = function(obj){
-		(typeof obj == 'object' && obj.path && typeof obj.path == 'object') ? Util.path = obj.path : '';
+		if(!opt || !typeof obj == 'object')
+			return;
+		opt.baseUrl && (Loader.baseUrl = opt.baseUrl);
+		opt.mode && (Loader.mode = opt.mode);
+		opt.path && (Loader.path = opt.path);
 	}
-	Util.init();
+	Loader.init();
 })(window)

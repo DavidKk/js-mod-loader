@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title></title>
+<script type="text/javascript">
+var scriptLoader = (function() {
+	var doc = document;
+    var onloadEvent = 'onload' in doc.createElement('script') ? 'onload' : 'onreadystatechange',
+        head = doc.head || doc.getElementsByTagName('head')[0],
+        status = {},
+        scripts = [],
+        currentlyAddingScript,
+        interactiveScript;
+
+    return {
+        // 获取正在执行的JS
+        getCurrentScript: function() {
+        	console.log(1)
+            if (currentlyAddingScript) { console.log(currentlyAddingScript);return currentlyAddingScript; }
+
+            if (interactiveScript && interactiveScript.readyState === 'interactive') {
+            	console.log(interactiveScript);
+                return interactiveScript;
+            }
+
+            for (var i = 0; i < scripts.length; i++) {
+                if (scripts[i].readyState === 'interactive') {
+                    interactiveScript = scripts[i];
+                    console.log(interactiveScript);
+                    return interactiveScript;
+                }
+            }
+        },
+
+        // 加载JS
+        load: function(src, onload) {
+            var currentStatus = status[src];
+
+            // console.log('scriptLoader.load', 'src(' + src + '), status(' + currentStatus + ')');
+
+            if (currentStatus) {
+                // status为1时表示此文件加载中，无须二次加载
+                // status为2时表示文件加载完成
+                if (currentStatus === 2) {
+                    if (onload) { onload(); }
+                }
+            } else {
+                // 记录正在加载
+                status[src] = 1;
+
+                var script = doc.createElement('script');
+                script.async = true;
+                script.src = src;
+
+                script[onloadEvent] = script.onerror = function() {
+                    var readyState = script.readyState;
+                    if (!readyState || 'loaded' === readyState || 'complete' === readyState) {
+                        // 记录加载完成
+                        status[src] = 2;
+
+                        // console.log('scriptLoader.load(onload)', src);
+
+                        script[onloadEvent] = script.onerror = null;
+                        head.removeChild(script);
+
+                        for (var i = scripts.length - 1; i >= 0; i--) {
+                            if (scripts[i] === script) {
+                                scripts.splice(i, 1);
+                                break;
+                            }
+                        }
+                        script = interactiveScript = null;
+
+                        if (onload) { onload(); }
+                    }
+                };
+
+                scripts.push(script);
+
+                currentlyAddingScript = script;
+                head.insertBefore(script, head.firstChild);
+                currentlyAddingScript = null;
+            }
+        }
+    };
+})();
+scriptLoader.load('test.js', function() {
+        console.log('loaded');
+});
+scriptLoader.load('test1.js', function() {
+    console.log('loaded1');
+});
+scriptLoader.load('test2.js', function() {
+    console.log('loaded2');
+});
+scriptLoader.load('test3.js', function() {
+    console.log('loaded3');
+});
+scriptLoader.load('test4.js', function() {
+    console.log('loaded4');
+});
+scriptLoader.load('test5.js', function() {
+    console.log('loaded5');
+});
+</script>
+</head>
+<body>
+</body>
+
+</html>
