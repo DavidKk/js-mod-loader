@@ -181,21 +181,20 @@
 			function _loadRes(_moduleId){
 				//获取真实url地址
 				var url = self._pathResolve(currentModule.url?currentModule.url:self.baseUrl,_moduleId);
-				var mod = new Module(url,self.callback);
-				mod.url = url;
-				currentModule.allDeps[_moduleId] = mod;
 
 				//防止二次加载
 				if(self.moduleStack[url]){
+					//依赖映射
+					currentModule.allDeps[_moduleId] = self.moduleStack[url];
 					//添加父模块到链表
-					for(var i=0; i<mod.parentModules.length; i++){
-						if(mod.parentModules[i] == currentModule){
-							return;
-						}
-					}
-					mod.parentModules.push(currentModule);
+					_addParentModule(self.moduleStack[url],currentModule);
 					return;
 				}
+
+				var mod = new Module(url,self.callback);
+				mod.url = url;
+				//依赖映射
+				currentModule.allDeps[_moduleId] = mod;
 				self.moduleStack[url] = mod;
 				//加载模块
 				self._loadRes(url,function(){
@@ -204,18 +203,9 @@
 						return;
 					}
 					mod._loaded = true;
-					console.log(mod)
+					
 					//添加父模块到链表
-					var hasAddParentMod = false;
-					for(var i=0; i<mod.parentModules.length; i++){
-						if(mod.parentModules[i] == currentModule){
-							hasAddParentMod = true;
-							break;
-						}
-					}
-					if(!hasAddParentMod){
-						mod.parentModules.push(currentModule);
-					}
+					_addParentModule(mod,currentModule);
 					
 					count++;
 
@@ -244,6 +234,18 @@
 
 				});
 			}
+			function _addParentModule(module,parentModule){
+				var hasAddParentMod = false;
+				for(var i=0; i<module.parentModules.length; i++){
+					if(module.parentModules[i] == parentModule){
+						hasAddParentMod = true;
+						break;
+					}
+				}
+				if(!hasAddParentMod){
+					module.parentModules.push(parentModule);
+				}
+			}
 		}
 	}
 
@@ -267,12 +269,13 @@
 				var myExports = null;
 				if(mod.defineDeps && mod.defineDeps.length>0){
 					var _results = [];
+					if(mod.id=='c')debugger;
 					for(var i=0; i<mod.defineDeps.length; i++){
 						_results.push(mod.require(mod.defineDeps[i]));
 					}
 					myExports = mod.callback.apply(mod,_results);
 				}else{
-					myExports = mod.callback(function(id,callback){mod.require(id,callback);},mod.exports,mod);
+					myExports = mod.callback(function(id,callback){return mod.require(id,callback);},mod.exports,mod);
 				}
 				
 				if(myExports){
