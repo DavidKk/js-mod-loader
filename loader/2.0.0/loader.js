@@ -5,17 +5,8 @@
 (function(window){
 	"use strict"
 
-	//模块类
-	var Module = function(id,callback){
-		this.id = id;
-		this.callback = callback;
-		this.exports = {};
-		Module.anonymous = null;
-	}
-	Module.prototype.require = function(moduleName){
-		return _require(moduleName);
-	};
-	//ie（6-9）不支持script.onload，使用interactive机制来获正在执行的脚本
+	
+	//ie（6-9）不支持script.onload，使用interactive机制来获取正在执行的脚本
 	var useInteractive = window.attachEvent && !(window.opera != null && window.opera.toString() === '[object Opera]'),currentAddingScript,interactiveScript;
 	//脚本加载工具
 	var scriptLoader = {
@@ -82,7 +73,10 @@
 				var main = script.getAttribute('data-main');
 				//以当前页面的完全路径为基准url
 				this.baseUrl = location.protocol+'//'+location.host+location.pathname.substring(0,location.pathname.lastIndexOf('/')+1);
-				this._require(main);
+				if(main){
+					this.baseUrl = this._pathResolve(this.baseUrl,main);
+					scriptLoader._loadScript(this.baseUrl);
+				}
 			}
 		},
 		//路径解析
@@ -138,10 +132,10 @@
 			//先去掉注释
 			funStr = funStr.replace(this.commenteReg,'');
 			//解析参数
-			reg = funStr.match(this.paramWithThreeReg) || funStr.match(this.paramWithTwoReg) || funStr.match(this.oneParamReg);
+			reg = funStr.match(this.threeParamReg) || funStr.match(this.twoParamReg) || funStr.match(this.oneParamReg);
 			requireStr = reg[1];
 			//根据第一个参数拼凑加载依赖的正则
-			var regStr = requireStr+'\\s*?\\([\'\"](\\w_-]+)[\'\"]\\)\\s*?';
+			var regStr = requireStr+'\\s*?\\(\\s*?[\'\"]([\\w_-]+)[\'\"]\\s*?\\)\\s*?';
 			var reg = new RegExp(regStr,'mg');
 			var result = null;
 			//匹配使用require函数加载的依赖名名称
@@ -158,49 +152,180 @@
 				}
 			}
 		},
-		_loopCheck: function(){
-
-		},
 		//私有require函数，只供内部递归加载依赖
 		_require: function(moduleId,callback){
 			var self = this;
 			var count = 0;
+			var mod = null;
+			//异步加载，新建匿名模块
+			if(callback){
+				mod = new Module(null,callback);
+				Module.currentModule = mod;
+			}
+			//将要依赖接下来要加载的模块的父模块
+			var currentModule = Module.currentModule;
 			if (moduleId instanceof Array){
+				if(mod){
+					mod.allDeps = mod.allDeps.concat(moduleId);
+				}
 				for(var i=0; i<moduleId.length; i++){
 					_loadRes(moduleId[i]);
 				}
 			}else{
-				_loadRes(moduleId)
+				if(mod){
+					mod.allDeps = [moduleId];
+				}
+				_loadRes(moduleId);
 			}
+
 			function _loadRes(_moduleId){
 				//获取真实url地址
-				var url = self._pathResolve(self.nowJsUrl?self.nowJsUrl:self.baseUrl,_moduleId);
+				var url = self._pathResolve(currentModule.url?currentModule.url:self.baseUrl,_moduleId);
 				var mod = new Module(url,self.callback);
-				//避免某些浏览器执行两次回调
-				if(self.moduleStack[url]){
-					return;
-				}
 				mod.url = url;
-				self.moduleStack[url] = mod;
-				self._loadRes(url,function(){
-					count++;
-					if(Module.anonymous){
-						mod.callback = Module.anonymous.callback;
-						mod.id = Module.anonymous.id;
-						mod.deps = Module.anonymous.deps;
-						if(!mod.id){
-							mod.id = mod.url;
+				currentModule.allDeps[_moduleId] = mod;
+
+				//防止二次加载
+				if(self.moduleStack[url]){
+					//添加父模块到链表
+					for(var i=0; i<mod.parentModules.length; i++){
+						if(mod.parentModules[i] == currentModule){
+							return;
 						}
 					}
-					if(mod.callback){
-						mod.deps.concat(self._codeResolve(mod.callback))
+					mod.parentModules.push(currentModule);
+					return;
+				}
+				self.moduleStack[url] = mod;
+				//加载模块
+				self._loadRes(url,function(){
+					//避免某些浏览器执行两次回调
+					if(mod._loaded){
+						return;
 					}
-					mod.deps && mod.deps.length > 0 && (self._require(mod.deps));
-					console.log(mod);
+					mod._loaded = true;
+					console.log(mod)
+					//添加父模块到链表
+					var hasAddParentMod = false;
+					for(var i=0; i<mod.parentModules.length; i++){
+						if(mod.parentModules[i] == currentModule){
+							hasAddParentMod = true;
+							break;
+						}
+					}
+					if(!hasAddParentMod){
+						mod.parentModules.push(currentModule);
+					}
+					
+					count++;
+
+					Module.anonymous.callback && (mod.callback = Module.anonymous.callback);
+					Module.anonymous.id && (mod.id = Module.anonymous.id);
+					Module.anonymous.defineDeps && (mod.defineDeps = Module.anonymous.defineDeps);
+					Module.anonymous.allDeps && (mod.allDeps = Module.anonymous.allDeps);
+
+					if(!mod.id){
+						mod.id = mod.url;
+					}
+					if(mod.callback){
+						mod.requireDeps = self._codeResolve(mod.callback);
+						mod.allDeps = mod.allDeps.concat(mod.requireDeps);
+					}
+					// console.log(mod);
+					if(mod.allDeps.length==0){
+						mod._depsLinkLoaded = true;
+					}
+					//为接下来加载依赖提供父模块依据
+					Module.currentModule = mod;
+					//加载依赖
+					mod.allDeps && mod.allDeps.length > 0 && (self._require(mod.allDeps));
+					//尝试执行
+					mod._tryExcute();
+
 				});
 			}
 		}
 	}
+
+	//模块类
+	var Module = function(id,callback){
+		this.id = id;
+		this.callback = callback;
+		this.exports = {};
+		this.module = this;
+		this.parentModules = [];
+		this.defineDeps = [];
+		this.requireDeps = [];
+		this.allDeps = [];
+		Module.anonymous = {};
+	}
+	//回调内加载函数
+	Module.prototype.require = function(id,callback){
+		if(!callback){
+			var mod = this.allDeps[id];
+			if(Loader.mode == 'CMD'){
+				var myExports = null;
+				if(mod.defineDeps && mod.defineDeps.length>0){
+					var _results = [];
+					for(var i=0; i<mod.defineDeps.length; i++){
+						_results.push(mod.require(mod.defineDeps[i]));
+					}
+					myExports = mod.callback.apply(mod,_results);
+				}else{
+					myExports = mod.callback(function(id,callback){mod.require(id,callback);},mod.exports,mod);
+				}
+				
+				if(myExports){
+					mod.exports = myExports;
+				}
+				return mod.exports;
+			}else if(Loader.mode == 'AMD'){
+				return this.allDeps[id].exports;
+			}
+		}else{
+			Loader._require(id,callback);
+		}
+	};
+	//尝试执行回调
+	Module.prototype._tryExcute = function(){
+		var allDeps = this.allDeps;
+		var _deps = [];
+		var allDepsLoaded = true;
+		for(var i=0; i<allDeps.length; i++){
+			if(!allDeps[allDeps[i]]._depsLinkLoaded){
+				allDepsLoaded = false;
+			}
+			_deps.push(allDeps[i]);
+		}
+		if(allDepsLoaded){
+			this._depsLinkLoaded = true;
+			if(!this.id){//匿名模块，直接执行回调
+				var _result = [];
+				for(var i=0; i<_deps.length; i++){
+					_result.push(this.require(_deps[i]));
+				}
+				this.callback.apply(this,_result);
+			}else if(Loader.mode == 'AMD'){//AMD模式下提前执行回调
+				//如果有声明的依赖
+				if(this.defineDeps && this.defineDeps.length>0){
+					var _result = [];
+					for(var i=0; i<this.defineDeps.length; i++){
+						_result.push(this.require(this.defineDeps[i]));
+					}
+					this.callback.apply(this,_results);
+				}else{
+					this.callback(function(id,callback){mod.require(id,callback);},this.exports,this);
+				}
+			}
+			//递归父模块
+			if(this.parentModules){
+				for(var i=0; i<this.parentModules.length; i++){
+					this.parentModules[i]._tryExcute();
+				}
+			}
+		}
+	}
+
 	//全局define函数
 	function define(id,dependencies,callback) {
 		var currentScript = scriptLoader._getCurrentScript();
@@ -219,25 +344,25 @@
 			}
 		}
 
-		if(currentScript){
+		if(currentScript){//ie(6-9)同步模式设置模块信息
 			var mod = Loader.moduleStack[currentScript.src]
 			mod.callback = callback;
 			mod.id = id;
-			mod.deps = dependencies || [];
+			mod.defineDeps = dependencies || [];
+			mod.allDeps = mod.defineDeps.concat([]);
 			if(!mod.id){
 				mod.id = currentScript.src;
 			}
-		}else{
-			Module.anonymous = {
-				id : id,
-				callback : callback,
-				deps: dependencies || []
-			}
+		}else{//异步模式传递模块信息
+			Module.anonymous.id = id;
+			Module.anonymous.callback = callback;
+			Module.anonymous.defineDeps = dependencies || [];
+			Module.anonymous.allDeps = Module.anonymous.defineDeps.concat([]);
 		}
 	}
 	//全局require函数
 	function require(dependencies,callback){
-		Loader._require(dependencies,callback);
+		Loader._require(dependencies,callback||function(){});
 	}
 	//配置路径映射接口
 	require.config = function(opt){
