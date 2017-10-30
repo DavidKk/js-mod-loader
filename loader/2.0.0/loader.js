@@ -50,6 +50,7 @@
 	//加载器
 	var Loader = {
 		moduleStack: [],//模块栈
+		LoadedUrl: {},//已经加载过的url
 		baseUrl: '',//基准路径
 		mainUrl: '',//入口
 		mode: 'CMD',//默认加载模式
@@ -156,6 +157,31 @@
 				dependencies.push(result[1]);
 			}
 			return dependencies;
+		},
+		//为子模块添加父模块
+		_addParentModule: function(module,parentModule){
+			var hasAddParentMod = false;
+			for(var i=0; i<module.parentModules.length; i++){
+				if(module.parentModules[i] == parentModule){
+					hasAddParentMod = true;
+					break;
+				}
+			}
+			if(!hasAddParentMod){
+				module.parentModules.push(parentModule);
+			}
+		},
+		//建立父子关系链
+		_setLink: function(mod){
+			for(id in this.moduleStack){
+				var _mod = this.moduleStack[id];
+				for(var i=0; i<_mod.allDeps.length; i++){
+					if(mod.id==_mod.allDeps[i] || mod.id==this._urlResolve(_mod.url,_mod.allDeps[i])){
+						_mod.allDeps[i] = mod;
+						this._addParentModule(mod,_mod);
+					}
+				}
+			}
 		}
 	}
 
@@ -182,14 +208,14 @@
 		//所有依赖
 		this.allDeps = [];
 		//异步对象
-		Module.anonymous = null;
+		Module.anonymous = this;
 	}
 	Module.prototype = {
 		constructor: Module,
 		//回调内加载模块
 		require : function(id,callback){
 			if(!callback){
-				var mod = this.allDeps[id];
+				var mod = this.allDeps[id]||this.url&&this.allDeps[Loader._urlResolve(this.url,id)];
 				if(Loader.mode == 'CMD'){
 					var myExports = null;
 					if(mod.defineDeps && mod.defineDeps.length>0){//要加载的模块如果有define声明的依赖
@@ -207,7 +233,8 @@
 					}
 					return mod.exports;
 				}else if(Loader.mode == 'AMD'){
-					return this.allDeps[id].exports;
+					var mod = this.allDeps[id]||this.url&&this.allDeps[Loader._urlResolve(this.url,id)];
+					return mod.exports;
 				}
 			}else{
 				require(id,callback);
@@ -221,10 +248,11 @@
 			var allDepsLoaded = true;
 			//判断依赖是否都加载完毕了
 			for(var i=0; i<allDeps.length; i++){
-				if(!allDeps[allDeps[i]]._depsLinkLoaded){
+				var mod = allDeps[allDeps[i]]||this.url&&allDeps[Loader._urlResolve(this.url,allDeps[i])];
+				if(!mod || !mod._depsLinkLoaded){
 					allDepsLoaded = false;
 				}
-				_deps.push(allDeps[i]);
+				_deps.push(mod);
 			}
 			if(allDepsLoaded){
 				this._depsLinkLoaded = true;
@@ -280,20 +308,42 @@
 		}
 		dependencies = dependencies||[];
 
+		var mod = null;
+
 		if(currentScript){//ie(6-9)下同步模式设置模块信息
-			var mod = Loader.moduleStack[currentScript.src]
-			mod.callback = callback;
-			mod.id = id || currentScript.src;
+			mod = Loader.moduleStack[id]||Loader.moduleStack[currentScript.src]
+			if(mod){
+				//设置父子关系链
+				Loader._setLink(mod);
+				return;
+			}
+			mod = new Module(null,callback);
+			mod.id = id;
 			mod.defineDeps = dependencies;
 			mod.allDeps = mod.defineDeps.concat([]);
-		}else{//异步模式传递模块信息
-			Module.anonymous = {
-				id : id,
-				callback : callback,
-				defineDeps : dependencies,
-				allDeps : dependencies.concat([])
+			mod.url = currentScript.src;
+			mod.id = mod.id || mod.url;
+			Module.anonymous = null;
+			//为接下来要加载的依赖提供父模块依据
+			Module.currentModule = mod;
+
+			//解析依赖
+			if(mod.callback && mod.defineDeps.length==0){
+				mod.requireDeps = Loader._codeResolve(mod.callback);
+				mod.allDeps = mod.allDeps.concat(mod.requireDeps);
 			}
-			
+			//判断所有依赖是否加载完毕
+			if(mod.allDeps.length==0){
+				mod._depsLinkLoaded = true;
+			}
+			mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+			//尝试执行
+			mod._tryExcute();
+		}else{
+			mod = new Module(null,callback);
+			mod.id = id;
+			mod.defineDeps = dependencies;
+			mod.allDeps = mod.defineDeps.concat([]);
 		}
 	}
 	/**
@@ -308,8 +358,7 @@
 			mod = new Module(null,callback);
 			Module.currentModule = mod;
 		}
-		//将要依赖接下来要加载的模块的父模块
-		var currentModule = Module.currentModule;
+		
 		if (moduleId instanceof Array){
 			if(mod){
 				mod.defineDeps = mod.defineDeps.concat(moduleId);
@@ -327,71 +376,50 @@
 		}
 
 		function _loadRes(_moduleId){
+			//将要依赖接下来要加载的模块的父模块
+			var currentModule = Module.currentModule;
 			//获取真实url地址
 			var url = Loader._urlResolve(currentModule.url?currentModule.url:Loader.mainUrl,_moduleId);
-
-			//防止二次加载
-			if(Loader.moduleStack[url]){
-				//依赖映射
-				currentModule.allDeps[_moduleId] = Loader.moduleStack[url];
-				//添加父模块到链表
-				_addParentModule(Loader.moduleStack[url],currentModule);
+			var loadedModule = Loader.moduleStack[_moduleId] || Loader.moduleStack[url];
+			if(loadedModule){
+				//添加父依赖
+				Loader._setLink(loadedModule);
 				return;
 			}
-
-			var mod = new Module(url);
-			mod.url = url;
-			//依赖映射
-			currentModule.allDeps[_moduleId] = mod;
-			Loader.moduleStack[url] = mod;
 			//加载模块
 			scriptLoader._loadScript(url,function(){
-				//避免某些浏览器执行两次回调
-				if(mod._loaded){
+				//防止执行两次回调
+				if(Loader.LoadedUrl[url]){
 					return;
 				}
-				mod._loaded = true;
-				
-				//添加父模块到链表
-				_addParentModule(mod,currentModule);
-				
+				Loader.LoadedUrl[url] = true;
+
 				if(Module.anonymous){
-					mod.callback = Module.anonymous.callback;
-					mod.id = Module.anonymous.id || mod.url;
-					mod.defineDeps = Module.anonymous.defineDeps;
-					mod.allDeps = Module.anonymous.allDeps;
+					mod = Module.anonymous;
+					mod.url = url;
+					mod.id = mod.id || mod.url;
+					Module.anonymous = null;
+					//为接下来要加载的依赖提供父模块依据
+					Module.currentModule = mod;
+
+					//解析依赖
+					if(mod.callback && mod.defineDeps.length==0){
+						mod.requireDeps = Loader._codeResolve(mod.callback);
+						mod.allDeps = mod.allDeps.concat(mod.requireDeps);
+					}
+					//判断所有依赖是否加载完毕
+					if(mod.allDeps.length==0){
+						mod._depsLinkLoaded = true;
+					}
+					//加载依赖
+					mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+					//尝试执行
+					mod._tryExcute();
 				}
-				//解析依赖
-				if(mod.callback && mod.defineDeps.length==0){
-					mod.requireDeps = Loader._codeResolve(mod.callback);
-					mod.allDeps = mod.allDeps.concat(mod.requireDeps);
-				}
-				//判断所有依赖是否加载完毕
-				if(mod.allDeps.length==0){
-					mod._depsLinkLoaded = true;
-				}
-				//为接下来要加载的依赖提供父模块依据
-				Module.currentModule = mod;
-				//加载依赖
-				mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
-				//尝试执行
-				mod._tryExcute();
 
 			});
 		}
-		//添加父模块
-		function _addParentModule(module,parentModule){
-			var hasAddParentMod = false;
-			for(var i=0; i<module.parentModules.length; i++){
-				if(module.parentModules[i] == parentModule){
-					hasAddParentMod = true;
-					break;
-				}
-			}
-			if(!hasAddParentMod){
-				module.parentModules.push(parentModule);
-			}
-		}
+		
 	}
 	/**
 	 * @todo 	配置
