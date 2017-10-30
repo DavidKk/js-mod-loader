@@ -51,6 +51,7 @@
 	var Loader = {
 		moduleStack: [],//模块栈
 		baseUrl: '',//基准路径
+		mainUrl: '',//入口
 		mode: 'CMD',//默认加载模式
 		paths: {},//别名
 		regs: {
@@ -76,9 +77,10 @@
 				var script = scripts[scripts.length -1];
 				var main = script.getAttribute('data-main');
 				//以当前页面的完全路径为基准url
-				this.baseUrl = '/';
+				this.baseUrl = location.protocol+'//'+location.host;
 				if(main){
-					scriptLoader._loadScript(this._urlResolve(this.baseUrl,main));
+					this.mainUrl = this._urlResolve(location.href,main)
+					scriptLoader._loadScript(this.mainUrl);
 				}
 			}
 		},
@@ -109,7 +111,7 @@
 			}
 			//处理/,./,../
 			if(moduleId.charAt(0)=='/'){
-
+				path = this.baseUrl+moduleId;
 			}else if(moduleId.slice(0,3) == '../'){
 				moduleId = moduleId.replace('../',path);
 				if(path.substring(0,path.lastIndexOf('/')).indexOf(location.host) != -1){
@@ -326,7 +328,7 @@
 
 		function _loadRes(_moduleId){
 			//获取真实url地址
-			var url = Loader._urlResolve(currentModule.url?currentModule.url:Loader.baseUrl,_moduleId);
+			var url = Loader._urlResolve(currentModule.url?currentModule.url:Loader.mainUrl,_moduleId);
 
 			//防止二次加载
 			if(Loader.moduleStack[url]){
