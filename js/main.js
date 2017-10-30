@@ -1,7 +1,6 @@
 require.config({
-	path:{bAlias : 'b'},
-	baseUrl: location.host+location.pathname.substring(0,location.pathname.lastIndexOf('/'))+'/js/'
+	paths:{bAlias : 'b'}//,mode: 'AMD'
 })
-require(['a','bAlias'],function(a,b){
-	console.log('require',a.x,b.x);
+require(['a','bAlias','https://file.qf.56.com/f/modjs/app/common/socket/1.2.x/index.js'],function(a,b,c){
+	console.log('require',a.x,b.x,c);
 })
