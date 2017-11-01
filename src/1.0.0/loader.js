@@ -254,6 +254,10 @@
 			var allDeps = this.allDeps;
 			var _deps = [];
 			var allDepsLoaded = true;
+			//避免非叶子节点多次执行
+			if(this._depsLinkLoaded && allDeps.length>0){
+				return;
+			}
 			//判断依赖是否都加载完毕了
 			for(var i=0; i<allDeps.length; i++){
 				var mod = allDeps[allDeps[i]];
@@ -264,13 +268,8 @@
 			}
 			if(allDepsLoaded){
 				this._depsLinkLoaded = true;
-				if(!this.parentModules.length){//匿名异步回调模块，直接执行回调
-					var _results = [];
-					for(var i=0; i<_deps.length; i++){
-						_results.push(this.require(_deps[i]));
-					}
-					this.callback.apply(this,_results);
-				}else if(Loader.mode == 'AMD'){//AMD模式下提前执行回调
+				//没有父模块或者AMD模式下提前执行回调
+				if(!this.parentModules.length || Loader.mode == 'AMD'){
 					if(this.defineDeps && this.defineDeps.length>0){//如果define函数有声明的依赖
 						var _results = [];
 						for(var i=0; i<this.defineDeps.length; i++){
@@ -294,8 +293,8 @@
 	/**
 	 * @todo 	 全局模块声明函数
 	 * @param    String  id  模块id
-	 * @param    Array dependencies  依赖数组
-	 * @param    Function callback  回调函数
+	 * @param    Array  dependencies  依赖数组
+	 * @param    Function  callback  回调函数
 	 */
 	function define(id,dependencies,callback) {
 		//获取ie(6-9)下正在执行的script
@@ -332,6 +331,8 @@
 			mod.url = currentScript.src;
 			mod.id = mod.id || mod.url;
 			Module.anonymous = null;
+			//添加到模块栈
+			Loader.moduleStack[mod.id] = mod;
 			//为接下来要加载的依赖提供父模块依据
 			Module.currentModule = mod;
 
@@ -340,28 +341,24 @@
 				mod.requireDeps = Loader._codeResolve(mod.callback);
 				mod.allDeps = mod.allDeps.concat(mod.requireDeps);
 			}
-			//添加到模块栈
-			Loader.moduleStack[mod.id] = mod;
 			//设置父子关系链
 			Loader._setLink(mod);
 			//判断所有依赖是否加载完毕
 			if(mod.allDeps.length==0){
 				mod._depsLinkLoaded = true;
 			}
+			mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
 			!function(mod){
 				setTimeout(function(){
-					mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+					//尝试执行
+					mod._tryExcute();
 				})
-			}
-			//尝试执行
-			mod._tryExcute();
+			}(mod);
 		}else{
 			mod = new Module(null,callback);
 			mod.id = id;
 			mod.defineDeps = dependencies;
 			mod.allDeps = mod.defineDeps.concat([]);
-			//添加到模块栈
-			Loader.moduleStack[mod.id] = mod;
 		}
 	}
 	/**
@@ -423,6 +420,8 @@
 						mod.id = mod.id || mod.url;
 						//为接下来要加载的依赖提供父模块依据
 						Module.currentModule = mod;
+						//添加到模块栈
+						Loader.moduleStack[mod.id] = mod;
 
 						//解析依赖
 						if(mod.callback && mod.defineDeps.length==0){
@@ -436,13 +435,13 @@
 							mod._depsLinkLoaded = true;
 						}
 						//加载依赖
+						mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
 						!function(mod){
 							setTimeout(function(){
-								mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+								//尝试执行
+								mod._tryExcute();
 							})
-						}
-						//尝试执行
-						mod._tryExcute();
+						}(mod);
 					}
 					//清空异步对象
 					Module.anonymous = null;
