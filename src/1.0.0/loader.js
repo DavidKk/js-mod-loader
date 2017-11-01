@@ -2,11 +2,11 @@
  * Author: lisong
  * @todo : 符合AMD标准的模块加载器
  */
-(function(window){
+(function(global){
 	"use strict"
 	
 	//ie（6-9）不支持script.onload，使用interactive机制来获取正在执行的脚本
-	var useInteractive = window.attachEvent && !(window.opera != null && window.opera.toString() === '[object Opera]')
+	var useInteractive = global.attachEvent && !(global.opera != null && global.opera.toString() === '[object Opera]')
 		,currentAddingScript,interactiveScript;
 	//脚本加载工具
 	var scriptLoader = {
@@ -52,7 +52,6 @@
 		moduleStack: {},//模块栈
 		LoadedUrl: {},//已经加载过的url
 		baseUrl: '',//基准路径
-		mainUrl: '',//入口
 		mode: 'CMD',//默认加载模式
 		paths: {},//别名
 		regs: {
@@ -68,8 +67,8 @@
 			//设置baseUrl
 			this._setBaseUrl();
 			//设置全局变量
-			window.define = define;
-			window.require = require;
+			global.define = define;
+			global.require = require;
 		},
 		_setBaseUrl: function(){
 			//设置baseUr
@@ -80,8 +79,8 @@
 				//以当前页面的完全路径为基准url
 				this.baseUrl = location.protocol+'//'+location.host;
 				if(main){
-					this.mainUrl = this._urlResolve(location.href,main)
-					scriptLoader._loadScript(this.mainUrl);
+					this.baseUrl = this._urlResolve(location.href,main)
+					scriptLoader._loadScript(this.baseUrl);
 				}
 			}
 		},
@@ -112,7 +111,7 @@
 			}
 			//处理/,./,../
 			if(moduleId.charAt(0)=='/'){
-				path = this.baseUrl+moduleId;
+				path = global.location.protocol+'//'+global.location.host+moduleId;
 			}else if(moduleId.slice(0,3) == '../'){
 				moduleId = moduleId.replace('../',path);
 				if(path.substring(0,path.lastIndexOf('/')).indexOf(location.host) != -1){
@@ -372,7 +371,7 @@
 		if(callback){
 			mod = new Module(null,callback);
 			Module.currentModule = mod;
-			mod.url = Module.currentModule && Module.currentModule.url ? Module.currentModule.url:Loader.mainUrl
+			mod.url = Module.currentModule && Module.currentModule.url ? Module.currentModule.url:Loader.baseUrl
 			Loader.moduleStack[Loader._createRandomName(6)] = mod;
 			//清空异步对象
 			Module.anonymous = null;
@@ -398,7 +397,7 @@
 			//将要依赖接下来要加载的模块的父模块
 			var currentModule = Module.currentModule;
 			//获取真实url地址
-			var url = Loader._urlResolve(currentModule.url?currentModule.url:Loader.mainUrl,_moduleId);
+			var url = Loader._urlResolve(currentModule.url?currentModule.url:Loader.baseUrl,_moduleId);
 			var loadedModule = Loader.moduleStack[_moduleId] || Loader.moduleStack[url];
 			if(loadedModule){
 				//添加父依赖
