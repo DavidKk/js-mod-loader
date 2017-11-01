@@ -79,7 +79,11 @@
 				//以当前页面的完全路径为基准url
 				this.baseUrl = location.protocol+'//'+location.host;
 				if(main){
-					this.baseUrl = this._urlResolve(location.href,main)
+					//防止入口脚本地址首次解析相对于baseUrl
+					if(main.charAt(0)!='.' && main.charAt(0)!='/'){
+						main = './'+main;
+					}
+					this.baseUrl = this._urlResolve(window.location.href,main)
 					scriptLoader._loadScript(this.baseUrl);
 				}
 			}
@@ -88,10 +92,14 @@
 		_urlResolve: function(path,moduleId){
 			var suffix = moduleId.match(this.regs.suffixReg) && moduleId.match(this.regs.suffixReg)[1];
 			var fileNameReg = null;
+			//处理模块别名
+			for(var key in this.paths){
+				var reg = new RegExp('(^|/)'+key+'(/|$)');
+				if(reg.test(moduleId))
+					moduleId = moduleId.replace(key,this.paths[key]);
+			}
 			//去除模块名的后缀
 			moduleId = suffix ? moduleId.slice(0,moduleId.length-(suffix.length+1)) : moduleId;
-			//带./和不带./都是指当前目录
-			moduleId = moduleId.replace('./','');
 			if(!suffix){
 				suffix = 'js';
 			}
@@ -112,6 +120,8 @@
 			//处理/,./,../
 			if(moduleId.charAt(0)=='/'){
 				path = global.location.protocol+'//'+global.location.host+moduleId;
+			}else if(moduleId.slice(0,2) == './'){
+				path = path+'/'+moduleId;
 			}else if(moduleId.slice(0,3) == '../'){
 				moduleId = moduleId.replace('../',path);
 				if(path.substring(0,path.lastIndexOf('/')).indexOf(location.host) != -1){
@@ -120,13 +130,7 @@
 				}
 				path = path+'/'+moduleId.replace('../','');
 			}else{
-				path = path+'/'+moduleId;
-			}
-			//处理模块名
-			for(var key in this.paths){
-				var reg = new RegExp('(^|/)'+key+'(/|$)');
-				if(reg.test(path))
-					path = path.replace(key,this.paths[key]);
+				path = this.baseUrl+'/'+moduleId;
 			}
 			if(!fileNameReg.test(path+'.'+suffix)){//如果是目录，默认加载index文件
 				path = path+'index.'+suffix;
