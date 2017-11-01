@@ -215,8 +215,8 @@
 		this.requireDeps = [];
 		//所有依赖
 		this.allDeps = [];
-		//异步对象
-		Module.anonymous = this;
+		//异步对象(多个模块可能在一个文件里声明，用集合存储)
+		!Module.anonymous ? Module.anonymous = [this] : Module.anonymous.push(this);
 	}
 	Module.prototype = {
 		constructor: Module,
@@ -264,7 +264,7 @@
 			}
 			if(allDepsLoaded){
 				this._depsLinkLoaded = true;
-				if(!this.id){//匿名异步回调模块，直接执行回调
+				if(!this.parentModules.length){//匿名异步回调模块，直接执行回调
 					var _results = [];
 					for(var i=0; i<_deps.length; i++){
 						_results.push(this.require(_deps[i]));
@@ -348,7 +348,11 @@
 			if(mod.allDeps.length==0){
 				mod._depsLinkLoaded = true;
 			}
-			mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+			!function(mod){
+				setTimeout(function(){
+					mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+				})
+			}
 			//尝试执行
 			mod._tryExcute();
 		}else{
@@ -356,6 +360,8 @@
 			mod.id = id;
 			mod.defineDeps = dependencies;
 			mod.allDeps = mod.defineDeps.concat([]);
+			//添加到模块栈
+			Loader.moduleStack[mod.id] = mod;
 		}
 	}
 	/**
@@ -371,6 +377,8 @@
 			Module.currentModule = mod;
 			mod.url = Module.currentModule && Module.currentModule.url ? Module.currentModule.url:Loader.mainUrl
 			Loader.moduleStack[Loader._createRandomName(6)] = mod;
+			//清空异步对象
+			Module.anonymous = null;
 		}
 		
 		if (moduleId instanceof Array){
@@ -409,30 +417,35 @@
 				Loader.LoadedUrl[url] = true;
 
 				if(Module.anonymous){
-					mod = Module.anonymous;
-					mod.url = url;
-					mod.id = mod.id || mod.url;
-					Module.anonymous = null;
-					//为接下来要加载的依赖提供父模块依据
-					Module.currentModule = mod;
+					for(var i=0;i<Module.anonymous.length;i++){
+						mod = Module.anonymous[i];
+						mod.url = url;
+						mod.id = mod.id || mod.url;
+						//为接下来要加载的依赖提供父模块依据
+						Module.currentModule = mod;
 
-					//解析依赖
-					if(mod.callback && mod.defineDeps.length==0){
-						mod.requireDeps = Loader._codeResolve(mod.callback);
-						mod.allDeps = mod.allDeps.concat(mod.requireDeps);
+						//解析依赖
+						if(mod.callback && mod.defineDeps.length==0){
+							mod.requireDeps = Loader._codeResolve(mod.callback);
+							mod.allDeps = mod.allDeps.concat(mod.requireDeps);
+						}
+						//设置父子关系链
+						Loader._setLink(mod);
+						//判断所有依赖是否加载完毕
+						if(mod.allDeps.length==0){
+							mod._depsLinkLoaded = true;
+						}
+						//加载依赖
+						!function(mod){
+							setTimeout(function(){
+								mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
+							})
+						}
+						//尝试执行
+						mod._tryExcute();
 					}
-					//添加到模块栈
-					Loader.moduleStack[mod.id] = mod;
-					//设置父子关系链
-					Loader._setLink(mod);
-					//判断所有依赖是否加载完毕
-					if(mod.allDeps.length==0){
-						mod._depsLinkLoaded = true;
-					}
-					//加载依赖
-					mod.allDeps && mod.allDeps.length > 0 && (require(mod.allDeps));
-					//尝试执行
-					mod._tryExcute();
+					//清空异步对象
+					Module.anonymous = null;
 				}
 
 			});
