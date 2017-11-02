@@ -1,6 +1,6 @@
 /**
  * Author: lisong
- * @todo : 符合AMD标准的模块加载器
+ * @todo : 模块加载器
  */
 (function(global){
 	"use strict"
@@ -52,7 +52,7 @@
 		moduleStack: {},//模块栈
 		LoadedUrl: {},//已经加载过的url
 		baseUrl: '',//基准路径
-		mode: 'CMD',//默认加载模式
+		mode: 'CMD',//默认加载模式,可设置为AMD
 		paths: {},//别名
 		regs: {
 			suffixReg: /\.(js)$/,//文件后缀
@@ -121,7 +121,7 @@
 			if(moduleId.charAt(0)=='/'){
 				path = global.location.protocol+'//'+global.location.host+moduleId;
 			}else if(moduleId.slice(0,2) == './'){
-				path = path+'/'+moduleId;
+				path = path+'/'+moduleId.replace('./','');
 			}else if(moduleId.slice(0,3) == '../'){
 				moduleId = moduleId.replace('../',path);
 				if(path.substring(0,path.lastIndexOf('/')).indexOf(location.host) != -1){
@@ -130,7 +130,7 @@
 				}
 				path = path+'/'+moduleId.replace('../','');
 			}else{
-				path = this.baseUrl+'/'+moduleId;
+				path = this.baseUrl+moduleId;
 			}
 			if(!fileNameReg.test(path+'.'+suffix)){//如果是目录，默认加载index文件
 				path = path+'index.'+suffix;
@@ -461,7 +461,13 @@
 	require.config = function(opt){
 		if(!opt || !typeof obj == 'object')
 			return;
-		opt.baseUrl && (Loader.baseUrl = opt.baseUrl);
+		if(opt.baseUrl){
+			if(opt.baseUrl.charAt(opt.baseUrl.length-1)!='/'){
+				Loader.baseUrl = opt.baseUrl+'/';
+			}else{
+				Loader.baseUrl = opt.baseUrl
+			}
+		}
 		opt.mode && (Loader.mode = opt.mode);
 		opt.paths && (Loader.paths = opt.paths);
 	}
