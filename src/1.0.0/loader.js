@@ -130,7 +130,7 @@
 				}
 				path = path+'/'+moduleId.replace('../','');
 			}else{
-				path = this.baseUrl+moduleId;
+				path = (this.baseUrl.charAt(this.baseUrl.length-1) == '/' ? this.baseUrl : this.baseUrl + '/') + moduleId;
 			}
 			if(!fileNameReg.test(path+'.'+suffix)){//如果是目录，默认加载index文件
 				path = path+'index.'+suffix;
