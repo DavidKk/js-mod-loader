@@ -193,6 +193,20 @@
 				str += String.fromCharCode(65+Math.ceil(Math.random()*(90-65)));
 			}
 			return str + new Date().getTime();
+		},
+		//执行回调
+		_excute: function(mod){
+			var myExports = null;
+			if(mod.defineDeps && mod.defineDeps.length>0){//要加载的模块如果有define声明的依赖
+				var _results = [];
+				for(var i=0; i<mod.defineDeps.length; i++){
+					_results.push(mod.require(mod.defineDeps[i]));
+				}
+				myExports = mod.callback.apply(mod,_results);
+			}else{//默认function(require,exports,module)函数回调
+				myExports = mod.callback(function(id,callback){return mod.require(id,callback);},mod.exports,mod);
+			}
+			return myExports;
 		}
 	}
 
@@ -228,17 +242,7 @@
 			if(!callback){
 				var mod = this.allDeps[id];
 				if(Loader.mode == 'CMD'){
-					var myExports = null;
-					if(mod.defineDeps && mod.defineDeps.length>0){//要加载的模块如果有define声明的依赖
-						var _results = [];
-						for(var i=0; i<mod.defineDeps.length; i++){
-							_results.push(mod.require(mod.defineDeps[i]));
-						}
-						myExports = mod.callback.apply(mod,_results);
-					}else{//默认function(require,exports,module)函数回调
-						myExports = mod.callback(function(id,callback){return mod.require(id,callback);},mod.exports,mod);
-					}
-					
+					var myExports = Loader._excute(mod);
 					if(myExports){
 						mod.exports = myExports;
 					}
@@ -273,15 +277,7 @@
 				this._depsLinkLoaded = true;
 				//没有父模块或者AMD模式下提前执行回调
 				if(!this.parentModules.length || Loader.mode == 'AMD'){
-					if(this.defineDeps && this.defineDeps.length>0){//如果define函数有声明的依赖
-						var _results = [];
-						for(var i=0; i<this.defineDeps.length; i++){
-							_results.push(this.require(this.defineDeps[i]));
-						}
-						this.callback.apply(this,_results);
-					}else{//默认function(require,exports,module)函数回调
-						this.callback(function(id,callback){return self.require(id,callback);},this.exports,this);
-					}
+					Loader._excute(this);
 				}
 				//递归尝试执行所有父模块的回调
 				if(this.parentModules){
