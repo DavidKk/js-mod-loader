@@ -8,6 +8,34 @@
 	//ie（6-9）不支持script.onload，使用interactive机制来获取正在执行的脚本
 	var useInteractive = global.attachEvent && !(global.opera != null && global.opera.toString() === '[object Opera]')
 		,currentAddingScript,interactiveScript;
+	//pointfree工具类
+	var PointFreeUtil = {
+		Functor: {
+			of: function(val){
+				this.val = val;
+				return new Functor(val);
+			},
+			map: function(fun){
+				return new Functor(fun(this.val));
+			}
+		},
+		compose :function(){
+			var arg = [];
+			for(var i=0; i < arguments.length; i++){
+				arg.push(arguments[i]);
+			}
+			if(typeof arg[arg.length-1] === 'function'){
+				if(arg.length==1){
+					return function(val){return arg[0](val)};
+				}
+				return function(val){
+					return arg[arg.length-1](PointFree.compose.apply(PointFree,arg.slice(0,arg.length-1))(val));
+				}
+			}else{
+				return PointFree.compose(PointFree.compose.apply(this,arg.slice(0,arg.length-1)))
+			}
+		}
+	}
 	//脚本加载工具
 	var scriptLoader = {
 		//加载js
