@@ -56,9 +56,7 @@
 		paths: {},//别名
 		regs: {
 			suffixReg: /\.(js)$/,//文件后缀
-			oneParamReg: /function[\s]*\(([a-zA-Z_$][\w_$\-\d]*?)[\s]*\)/,//匹配参数,function(require)
-			twoParamReg: /function[\s]*\(([a-zA-Z_$][\w_$\-\d]*?)[\s]*?,[\s]*?([a-zA-Z_$][\w_$\-\d]*?)[\s]*?\)/,//匹配参数,function(require,export)
-			threeParamReg: /function[\s]*\(([a-zA-Z_$][\w_$\-\d]*?)[\s]*?,[\s]*?([a-zA-Z_$][\w_$\-\d]*?)[\s]*?,[\s]*?([a-zA-Z_$][\w_$\-\d]*?)[\s]*?\)/,//匹配参数,function(require,export,module)
+			funParamReg: /function[\s]*\(([a-zA-Z_$][\w_$\-\d]*?)([\s]*?,[\s]*?[a-zA-Z_$][\w_$\-\d]*?[\s]*?)*\)/,//匹配参数,function(require)
 			commenteReg: /\/\/[\s\S]*?\n|\/\*[\s\S]*?\*\//mg,//去除注释
 			urlReg: /^(https?):\/\/[\w\-]+(\.[\w\-]+)+([\w\-\.,@?^=%&:\/~\+#]*[\w\-\@?^=%&\/~\+#])?$///匹配url
 		},
@@ -149,7 +147,7 @@
 			//先去掉注释
 			funStr = funStr.replace(this.regs.commenteReg,'');
 			//解析参数
-			reg = funStr.match(this.regs.threeParamReg) || funStr.match(this.regs.twoParamReg) || funStr.match(this.regs.oneParamReg);
+			reg = funStr.match(this.regs.funParamReg);
 			requireStr = reg[1];
 			//根据第一个参数拼凑加载依赖的正则
 			var regStr = requireStr+'\\s*?\\(\\s*?[\'\"]([\\w_-]+)[\'\"]\\s*?\\)\\s*?';
