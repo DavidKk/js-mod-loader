@@ -61,7 +61,7 @@ global.require = function(moduleId, factory)
  */
 global.require.config = function(opt)
 ```
-*`注意：baseUrl默认为加载器所在的路径`*
+`注意：baseUrl默认为加载器所在的路径`
 
 ## 贡献
 
