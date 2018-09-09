@@ -1,8 +1,8 @@
-## js-mod-loader
+# js-mod-loader
 
 > 一个简单的 JavaScript 模块加载器，支持 AMD 和 CMD 模式
 
-### 内容
+## 内容
 
 - [**`功能特性`**](#功能特性)
 - [**`安装`**](#安装)
@@ -14,22 +14,22 @@
 - [**`贡献`**](#贡献)
 
 
-### 功能特性
+## 功能特性
 * [x] 支持 ADM 和 CMD 模式（默认为 CMD 模式，可配置成 AMD 模式）
 * [x] 兼容 pc 和 h5
 * [x] 持续维护迭代
 
-### 安装
+## 安装
 
 ```bash
 npm install js-mod-loader
 ```
 
-### 案例
+## 案例
 
 请查看[**`example`**](https://github.com/wanls4583/js-mod-loader/tree/master/src/example)
 
-### define
+## define
 
 ```javascript
 /**
@@ -41,7 +41,7 @@ npm install js-mod-loader
 window.define = function(id, dependencies, factory)
 ```
 
-### require
+## require
 
 ```javascript
 /**
@@ -52,7 +52,7 @@ window.define = function(id, dependencies, factory)
 global.require = function(moduleId, factory)	
 ```
 
-### require.config
+## require.config
 
 ```javascript
 /**
@@ -61,8 +61,8 @@ global.require = function(moduleId, factory)
  */
 global.require.config = function(opt)
 ```
-**注意：baseUrl默认为加载器所在的路径**
+*`注意：baseUrl默认为加载器所在的路径`*
 
-### 贡献
+## 贡献
 
 欢迎给出一些意见和优化，期待你的 `Pull Request`
