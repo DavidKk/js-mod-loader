@@ -1,0 +1,27 @@
+{
+  "name": "js-loader",
+  "version": "1.0.0",
+  "description": "A js module loader run in browser,accord with cmd or amd",
+  "main": "dist/loader.min.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wanls4583/js-loader.git"
+  },
+  "keywords": [
+    "loader",
+    "module",
+    "js-loader",
+    "js-module",
+    "AMD",
+    "CMD",
+    "define",
+    "require"
+  ],
+  "author": "lisong",
+  "license": "ISC",
+  "devDependencies": {
+  },
+  "scripts": {
+    "build": "uglifyjs --compress --mangle --output dist/loader.min.js -- src/loader.js"
+  }
+}

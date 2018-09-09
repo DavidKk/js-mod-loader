@@ -3,9 +3,23 @@
 <head>
 	<meta http-equiv="content-type" content="text/html;charset=utf-8">
 	<title>模块加载器</title>
-	<script type="text/javascript" src="../../loader.js" data-main="example/assemble/js/main"></script>
 </head>
 <body>
-
 </body>
+<script type="text/javascript">
+	var console = {};
+	console.log = function(){
+		var p = document.createElement('p');
+		if(window.JSON){
+			for(var i=0; i<arguments.length; i++){
+				if(typeof arguments[i] == 'object'){
+					arguments[i] = JSON.stringify(arguments[i]);
+				}
+			}
+		}
+		p.innerHTML = [].join.call(arguments,'， ');
+		document.getElementsByTagName('body')[0].append(p);
+	}
+</script>
+<script type="text/javascript" src="../../loader.js" data-main="example/assemble/main"></script>
 </html>

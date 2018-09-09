@@ -54,7 +54,7 @@
         loadedUrl: {}, //已经加载过的url
         baseUrl: '', //基准路径
         mode: 'CMD', //默认加载模式,可设置为AMD
-        paths: {}, //别名
+        alias: {}, //别名
         regs: {
             suffixReg: /\.(js)$/, //文件后缀
             factoryParamReg: /function[\s]*\(([a-zA-Z_$][\w_$\-\d]*?)([\s]*?,[\s]*?[a-zA-Z_$][\w_$\-\d]*?[\s]*?)*\)/, //匹配参数,function(require)
@@ -94,10 +94,10 @@
             var suffix = moduleId.match(this.regs.suffixReg) && moduleId.match(this.regs.suffixReg)[1];
             var self = this;
             //处理模块别名
-            for (var key in this.paths) {
+            for (var key in this.alias) {
                 var reg = new RegExp('(^|/)' + key + '(/|$)');
                 if (reg.test(moduleId))
-                    moduleId = moduleId.replace(key, this.paths[key]);
+                    moduleId = moduleId.replace(key, this.alias[key]);
             }
             //去除模块名的后缀
             moduleId = suffix ? moduleId.slice(0, moduleId.length - (suffix.length + 1)) : moduleId;
@@ -112,7 +112,7 @@
                 }
                 return parentPath;
             }
-            //如果父目录是个url地址
+
             if (parentPath.charAt(parentPath.length - 1) != '/') {
                 //当前目录
                 parentPath = parentPath.substring(0, parentPath.lastIndexOf('/') + 1);
@@ -163,7 +163,7 @@
             reg = funStr.match(this.regs.factoryParamReg);
             requireStr = reg[1];
             //根据第一个参数拼凑加载依赖的正则
-            var regStr = requireStr + '\\s*?\\(\\s*?[\'\"]([\\w_-]+)[\'\"]\\s*?\\)\\s*?';
+            var regStr = requireStr + '\\s*?\\(\\s*?[\'\"](.+?)[\'\"]\\s*?\\)\\s*?';
             var reg = new RegExp(regStr, 'mg');
             var result = null;
             //匹配使用require函数加载的依赖名名称
@@ -232,6 +232,7 @@
         //异步对象(多个模块可能在一个文件里声明，用集合存储)
         !Module.anonymous ? Module.anonymous = [this] : Module.anonymous.push(this);
     }
+
     Module.prototype = {
         constructor: Module,
         //factory内加载模块
@@ -239,9 +240,8 @@
             if (!factory) {
                 var mod = this.allDeps[id];
                 if (Loader.mode == 'CMD') {
-                    var myExports = this._excute(mod);
-                    if (myExports) {
-                        mod.exports = myExports;
+                    if (!mod.excuted) {
+                        mod.exports = this._excute(mod) || mod.exports;
                     }
                     return mod.exports;
                 } else if (Loader.mode == 'AMD') {
@@ -264,6 +264,8 @@
             } else { //默认function(require,exports,module)函数回调
                 myExports = mod.factory(function(id, factory) { return mod.require(id, factory); }, mod.exports, mod);
             }
+            //设置执行标识
+            mod.excuted = true;
             return myExports;
         },
         //尝试执行factory
@@ -284,11 +286,12 @@
                 }
                 _deps.push(allDeps[i]);
             }
+            //所有子依赖加载完毕
             if (allDepsLoaded) {
                 this._depsLinkLoaded = true;
                 //没有父模块或者AMD模式下提前执行factory
-                if (!this.parentModules.length || Loader.mode == 'AMD') {
-                    this._excute(this);
+                if ((!this.parentModules.length || Loader.mode == 'AMD') && !this.excuted) {
+                    this.exports = this._excute(this) || this.exports;
                 }
                 //递归尝试执行所有父模块的factory
                 if (this.parentModules) {
@@ -306,7 +309,7 @@
      * @param    Array  dependencies  依赖数组
      * @param    Function  factory  回调函数
      */
-    function define(id, dependencies, factory) {
+    global.define = function(id, dependencies, factory) {
         //获取ie(6-9)下正在执行的script
         var currentScript = scriptLoader._getCurrentScript();
         var mod = null;
@@ -366,12 +369,13 @@
             mod.allDeps = mod.defineDeps.concat([]);
         }
     }
+
     /**
      * @todo     全局加载函数
      * @param    String|Array  moduleId  模块id或者依赖数组
      * @param    Function factory  回调函数
      */
-    function require(moduleId, factory) {
+    global.require = function(moduleId, factory) {
         var mod = null;
         //异步加载，新建匿名模块
         if (factory) {
@@ -451,11 +455,12 @@
         }
 
     }
+
     /**
-     * @todo    配置
-     * @param   Object   opt {baseUrl:基准url，mode:加载模式(CMD|AMD)，paths:路径别名}
+     * @todo    全局配置函数
+     * @param   Object   opt {baseUrl:基准url，mode:加载模式(CMD|AMD)，alias:路径别名}
      */
-    require.config = function(opt) {
+    global.require.config = function(opt) {
         if (!opt || !typeof obj == 'object')
             return;
         if (opt.baseUrl) {
@@ -470,7 +475,9 @@
             }
         }
         opt.mode && (Loader.mode = opt.mode);
-        opt.paths && (Loader.paths = opt.paths);
+        opt.alias && (Loader.alias = opt.alias);
     }
+
+    //初始化加载器
     Loader._init();
 })(window)
