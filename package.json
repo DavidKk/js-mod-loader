@@ -1,16 +1,17 @@
 {
-  "name": "js-loader",
+  "name": "js-mod-loader",
   "version": "1.0.0",
   "description": "A js module loader run in browser,accord with cmd or amd",
   "main": "dist/loader.min.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wanls4583/js-loader.git"
+    "url": "git+https://github.com/wanls4583/js-mod-loader.git"
   },
   "keywords": [
     "loader",
     "module",
     "js-loader",
+    "js-mod-loader",
     "js-module",
     "AMD",
     "CMD",
