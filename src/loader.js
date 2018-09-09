@@ -71,30 +71,27 @@
         },
         _setBaseUrl: function() {
             //设置baseUr
-            if (!this.baseUrl) {
-                var scripts = document.getElementsByTagName('script');
-                //最后一个为当前加载器
-                var script = scripts[scripts.length - 1];
-                var main = script.getAttribute('data-main');
-                //以加载器的路径为基准url
-                this.baseUrl = script.src;
-                if (main) {
-                    var tmp = main.indexOf('://');
-                    if (tmp != -1) {
-                        main = main.substr(main.indexOf('/', tmp + 3));
-                    }
-                    if (main.charAt(0) != '.' && main.charAt(0) != '/') {
-                        main = './' + main;
-                    }
-                    this.baseUrl = this._urlResolve(this.baseUrl, main)
-                    scriptLoader._loadScript(this.baseUrl);
+            var scripts = document.getElementsByTagName('script');
+            //最后一个为当前加载器
+            var script = scripts[scripts.length - 1];
+            var main = script.getAttribute('data-main');
+            //以加载器的路径为基准url
+            this.baseUrl = script.src.substring(0, script.src.lastIndexOf('/') + 1);
+            this.domain = script.src.substring(0, script.src.indexOf('/', script.src.indexOf('://') + 3));
+            if (main) {
+                var tmp = main.indexOf('://');
+                if (tmp != -1) {
+                    main = main.substr(main.indexOf('/', tmp + 3));
                 }
+                if (main.charAt(0) != '.' && main.charAt(0) != '/') {
+                    main = './' + main;
+                }
+                scriptLoader._loadScript(this._urlResolve(this.baseUrl, main));
             }
         },
         //路径解析
         _urlResolve: function(parentPath, moduleId) {
             var suffix = moduleId.match(this.regs.suffixReg) && moduleId.match(this.regs.suffixReg)[1];
-            var fileNameReg = null;
             var self = this;
             //处理模块别名
             for (var key in this.paths) {
@@ -107,9 +104,8 @@
             if (!suffix) {
                 suffix = 'js';
             }
-            fileNameReg = new RegExp('[\\w-]+\\.' + suffix + '$');
             if (this.regs.urlReg.test(moduleId)) {
-                if (!fileNameReg.test(moduleId + '.' + suffix)) { //如果是目录，默认加载index文件
+                if (_moduleId.charAt(_moduleId.length - 1) == '/') { //如果是目录，默认加载index文件
                     parentPath = moduleId + 'index.' + suffix;
                 } else {
                     parentPath = moduleId + '.' + suffix;
@@ -117,34 +113,34 @@
                 return parentPath;
             }
             //如果父目录是个url地址
-            if (parentPath.substring(0, parentPath.lastIndexOf('/')).indexOf('://') != -1) {
+            if (parentPath.charAt(parentPath.length - 1) != '/') {
                 //当前目录
-                parentPath = parentPath.substring(0, parentPath.lastIndexOf('/'));
+                parentPath = parentPath.substring(0, parentPath.lastIndexOf('/') + 1);
             }
 
             //处理/,./,../相对路径
             function _relPath(_parentPath, _moduleId) {
                 if (_moduleId.charAt(0) == '/') {
-                    _parentPath = global.location.protocol + '//' + global.location.host + _moduleId;
+                    _parentPath = self.domain + '/' + _moduleId;
                 } else if (_moduleId.slice(0, 2) == './') {
-                    _parentPath = _parentPath + '/' + _moduleId.replace('./', '');
+                    _parentPath = _parentPath + _moduleId.replace('./', '');
                 } else if (_moduleId.slice(0, 3) == '../') {
                     _moduleId = _moduleId.replace('../', _parentPath);
                     if (_parentPath.indexOf('/') != -1) {
                         //父目录
-                        _parentPath = _parentPath.substring(0, _parentPath.lastIndexOf('/'));
+                        _parentPath = _parentPath.substring(0, _parentPath.lastIndexOf('/', _parentPath.length - 1) + 1);
                     } else {
                         throw new Error('Error load ' + moduleId)
                     }
                     //可能还存在../
-                    if(_moduleId.indexOf('../')!=-1){
-	                    return _relPath(_parentPath, _moduleId);
+                    if (_moduleId.indexOf('../') != -1) {
+                        return _relPath(_parentPath, _moduleId);
                     }
-                    _parentPath = _parentPath + '/' + _moduleId;
+                    _parentPath = _parentPath + _moduleId;
                 } else {
-                    _parentPath = (self.baseUrl.charAt(self.baseUrl.length - 1) == '/' ? self.baseUrl : self.baseUrl + '/') + moduleId;
+                    _parentPath = self.baseUrl + moduleId;
                 }
-                if (!fileNameReg.test(_parentPath + '.' + suffix)) { //如果是目录，默认加载index文件
+                if (_moduleId.charAt(_moduleId.length - 1) == '/') { //如果是目录，默认加载index文件
                     _parentPath = _parentPath + 'index.' + suffix;
                 } else {
                     _parentPath = _parentPath + '.' + suffix;
@@ -305,7 +301,7 @@
     }
 
     /**
-     * @todo 	 全局模块声明函数
+     * @todo     全局模块声明函数
      * @param    String  id  模块id
      * @param    Array  dependencies  依赖数组
      * @param    Function  factory  回调函数
@@ -356,8 +352,8 @@
             //判断所有依赖是否加载完毕
             if (mod.allDeps.length == 0) {
                 mod._depsLinkLoaded = true;
-            }else{ //加载依赖
-            	require(mod.allDeps)
+            } else { //加载依赖
+                require(mod.allDeps)
             }
             //设置已加载标识
             Loader.loadedUrl[url] = true;
@@ -371,7 +367,7 @@
         }
     }
     /**
-     * @todo 	 全局加载函数
+     * @todo     全局加载函数
      * @param    String|Array  moduleId  模块id或者依赖数组
      * @param    Function factory  回调函数
      */
@@ -380,9 +376,9 @@
         //异步加载，新建匿名模块
         if (factory) {
             mod = new Module(null, factory);
-            Module.parentModule = mod;
             mod.url = Module.parentModule && Module.parentModule.url ? Module.parentModule.url : Loader.baseUrl
             Loader.moduleStack[Loader._createRandomName(6)] = mod;
+            Module.parentModule = mod;
             //清空异步模块对信息
             Module.anonymous = null;
         }
@@ -422,7 +418,7 @@
                 //设置已加载标识
                 Loader.loadedUrl[url] = true;
                 if (Module.anonymous) { //标准浏览器下，在onload回调中异步设置模块信息（onload会在脚本执行完后立即触发）
-                	var anonymous = [].concat(Module.anonymous);
+                    var anonymous = [].concat(Module.anonymous);
                     for (var i = 0; i < anonymous.length; i++) {
                         mod = anonymous[i];
                         mod.url = url;
@@ -441,8 +437,8 @@
                         //判断所有依赖是否加载完毕
                         if (mod.allDeps.length == 0) {
                             mod._depsLinkLoaded = true;
-                        }else{ //加载依赖
-                        	require(mod.allDeps)
+                        } else { //加载依赖
+                            require(mod.allDeps)
                         }
                         //尝试执行factory
                         mod._tryExcute();
@@ -456,17 +452,21 @@
 
     }
     /**
-     * @todo 	配置
+     * @todo    配置
      * @param   Object   opt {baseUrl:基准url，mode:加载模式(CMD|AMD)，paths:路径别名}
      */
     require.config = function(opt) {
         if (!opt || !typeof obj == 'object')
             return;
         if (opt.baseUrl) {
-            if (opt.baseUrl.charAt(opt.baseUrl.length - 1) != '/') {
-                Loader.baseUrl = opt.baseUrl + '/';
+            var rel = opt.baseUrl;
+            if (rel.charAt(0) == '/') {
+                Loader.baseUrl += rel.substr(1);
             } else {
-                Loader.baseUrl = opt.baseUrl
+                Loader.baseUrl += rel;
+            }
+            if (Loader.baseUrl.charAt(Loader.baseUrl.length - 1) != '/') {
+                Loader.baseUrl += '/'
             }
         }
         opt.mode && (Loader.mode = opt.mode);
