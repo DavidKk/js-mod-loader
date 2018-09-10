@@ -77,6 +77,7 @@
             var main = script.getAttribute('data-main');
             //以加载器的路径为基准url
             this.baseUrl = script.src.substring(0, script.src.lastIndexOf('/') + 1);
+            this.mainUrl = this._urlResolve(this.baseUrl, main);
             this.domain = script.src.substring(0, script.src.indexOf('/', script.src.indexOf('://') + 3));
             if (main) {
                 var tmp = main.indexOf('://');
@@ -86,7 +87,7 @@
                 if (main.charAt(0) != '.' && main.charAt(0) != '/') {
                     main = './' + main;
                 }
-                scriptLoader._loadScript(this._urlResolve(this.baseUrl, main));
+                scriptLoader._loadScript(this.mainUrl);
             }
         },
         //路径解析
@@ -394,7 +395,6 @@
             mod = new Module(null, factory);
             mod.id = id;
             mod.defineDeps = dependencies;
-            mod._addDeps(mod.defineDeps);
         }
     }
 
@@ -408,7 +408,7 @@
         //异步加载，新建匿名模块
         if (factory) {
             mod = new Module(null, factory);
-            mod.url = Module.parentModule && Module.parentModule.url ? Module.parentModule.url : Loader.baseUrl;
+            mod.url = Module.parentModule && Module.parentModule.url ? Module.parentModule.url : Loader.mainUrl;
             mod.id = mod.url;
             Loader.moduleStack[Loader._createRandomName(6)] = mod;
             Module.parentModule = mod;
@@ -466,6 +466,8 @@
                         if (mod.factory && mod.defineDeps.length == 0) {
                             mod.requireDeps = Loader._codeResolve(mod.factory);
                             mod._addDeps(mod.requireDeps);
+                        }else{
+                            mod._addDeps(mod.defineDeps);
                         }
                         //判断所有依赖是否加载完毕
                         if (mod.allDeps.length == 0) {
