@@ -359,7 +359,7 @@
                 require(mod.allDeps)
             }
             //设置已加载标识
-            Loader.loadedUrl[url] = true;
+            Loader.loadedUrl[mod.url] = true;
             //尝试执行factory
             mod._tryExcute();
         } else {
