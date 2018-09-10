@@ -1,6 +1,6 @@
 {
   "name": "js-mod-loader",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A js module loader run in browser,accord with cmd or amd",
   "main": "dist/loader.min.js",
   "repository": {
